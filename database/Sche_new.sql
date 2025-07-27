@@ -166,8 +166,9 @@ CREATE TABLE "Mark" (
   "Student_ID" INTEGER,
   "Course_ID" INTEGER,
   "Sub_Topic_ID" INTEGER NOT NULL,
-  "Assignment_Avarage" INTEGER,
+  "Assignment" INTEGER,
   "Exam_Mark" INTEGER,
+  "COMMENT" TEXT,
   PRIMARY KEY ("Student_ID", "Course_ID"),
   FOREIGN KEY ("Student_ID", "Course_ID") REFERENCES "Enroll" ("Student_ID", "Course_ID"),
   FOREIGN KEY ("Sub_Topic_ID") REFERENCES "Sub_Topic" ("Sub_Topic_ID")
