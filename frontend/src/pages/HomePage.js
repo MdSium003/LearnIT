@@ -16,10 +16,20 @@ const CourseCard = ({ course }) => {
             className="bg-white rounded-xl shadow-lg border border-gray-200/80 overflow-hidden group cursor-pointer transform hover:-translate-y-2 transition-all duration-300 h-full flex flex-col"
         >
             <div className="relative h-40 bg-gray-200">
-                 <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-indigo-600 opacity-80"></div>
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <h3 className="text-white text-xl font-bold text-center p-4">{course.Title || course.title}</h3>
-                 </div>
+                 {course.thumbnail_base64 ? (
+                    <img 
+                        src={`data:image/png;base64,${course.thumbnail_base64}`} 
+                        alt={`${course.Title || course.title} thumbnail`}
+                        className="w-full h-full object-cover"
+                    />
+                 ) : (
+                    <>
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-indigo-600 opacity-80"></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <h3 className="text-white text-xl font-bold text-center p-4">{course.Title || course.title}</h3>
+                        </div>
+                    </>
+                 )}
             </div>
             <div className="p-5 flex-grow flex flex-col">
                 <p className="text-sm text-gray-500 mb-2">By {course.instructor || 'LearnIT Staff'}</p>

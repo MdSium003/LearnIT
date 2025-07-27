@@ -38,12 +38,22 @@ const CourseDoingPage = () => {
                 const courseTitleRes = await fetch(`http://localhost:5001/api/v1/courses/${courseId}`);
                 const courseTitleData = await courseTitleRes.json();
 
+                // **FIX:** Sort subtopics to ensure "Final Quiz" is always last.
+                let sortedSubtopics = [];
+                if (data.subtopics && Array.isArray(data.subtopics)) {
+                    const finalQuiz = data.subtopics.find(sub => sub.title === 'Final Quiz');
+                    const regularSubtopics = data.subtopics.filter(sub => sub.title !== 'Final Quiz');
+                    sortedSubtopics = [...regularSubtopics];
+                    if (finalQuiz) {
+                        sortedSubtopics.push(finalQuiz);
+                    }
+                }
 
-                setCourseData({ title: courseTitleData.title || 'Course', subtopics: data.subtopics || [] });
+                setCourseData({ title: courseTitleData.title || 'Course', subtopics: sortedSubtopics });
 
                 // Auto-select the first video of the first subtopic
-                if (data.subtopics && data.subtopics.length > 0) {
-                    const firstSubtopic = data.subtopics[0];
+                if (sortedSubtopics.length > 0) {
+                    const firstSubtopic = sortedSubtopics[0];
                     setOpenSubtopic(firstSubtopic.subTopicId);
                     if (firstSubtopic.videos && firstSubtopic.videos.length > 0) {
                         setSelectedContent({ type: 'video', data: firstSubtopic.videos[0] });

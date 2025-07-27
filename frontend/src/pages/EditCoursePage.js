@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, FileText, PlayCircle, FileCheck2 } from 'lucide-react';
+import { Plus, Trash2, FileText, PlayCircle, FileCheck2, Image, Youtube } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-// Helper function to create an empty subtopic object
+// Helper function to create an empty subtopic object, ensuring all arrays are initialized.
 const emptySubtopic = () => ({
   title: '',
   videos: [{ title: '', link: '' }],
@@ -15,21 +15,21 @@ const EditCoursePage = () => {
   const { courseId } = useParams();
   const [loading, setLoading] = useState(true);
   
-  // State for general course information
   const [courseInfo, setCourseInfo] = useState({
     title: '',
     description: '',
     price: '',
   });
-
-  // State for the regular, editable subtopics
-  const [subtopics, setSubtopics] = useState([emptySubtopic()]);
   
-  // Dedicated state for the final quiz exam link
+  // State for thumbnail and trailer
+  const [trailerLink, setTrailerLink] = useState('');
+  const [thumbnail, setThumbnail] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState('');
+
+  // Initialize subtopics as an empty array to prevent errors before data is loaded.
+  const [subtopics, setSubtopics] = useState([]);
   const [finalQuizExamLink, setFinalQuizExamLink] = useState('');
 
-  // **CORRECTED useEffect HOOK**
-  // This hook now correctly separates the 'Final Quiz' from other subtopics when fetching data.
   useEffect(() => {
     const fetchCourseData = async () => {
       const token = localStorage.getItem('token');
@@ -57,28 +57,34 @@ const EditCoursePage = () => {
         const course = data.course;
         
         setCourseInfo({
-          title: course.title,
-          description: course.description,
-          price: course.price,
+          title: course.title || '',
+          description: course.description || '',
+          price: course.price || '',
         });
         
-        // Separate the "Final Quiz" from other subtopics
+        setTrailerLink(course.trailerLink || '');
+        setThumbnailPreview(`http://localhost:5001/api/courses/${courseId}/thumbnail`);
+
         if (course.subtopics && course.subtopics.length > 0) {
           const finalQuiz = course.subtopics.find(sub => sub.title === 'Final Quiz');
           const regularSubtopics = course.subtopics.filter(sub => sub.title !== 'Final Quiz');
 
-          // Set the final quiz link state if the final quiz exists
-          if (finalQuiz && finalQuiz.exams && finalQuiz.exams.length > 0) {
+          if (finalQuiz && Array.isArray(finalQuiz.exams) && finalQuiz.exams.length > 0) {
             setFinalQuizExamLink(finalQuiz.exams[0].link || '');
           }
 
-          // Set the state for the regular subtopics
-          if (regularSubtopics.length > 0) {
-            setSubtopics(regularSubtopics);
-          } else {
-            setSubtopics([emptySubtopic()]);
-          }
+          // **CRITICAL FIX:** Sanitize the fetched data to ensure all nested arrays exist.
+          const sanitizedSubtopics = regularSubtopics.map(sub => ({
+            ...sub,
+            title: sub.title || '',
+            videos: Array.isArray(sub.videos) ? sub.videos : [],
+            assignments: Array.isArray(sub.assignments) ? sub.assignments : [],
+            exams: Array.isArray(sub.exams) ? sub.exams : [],
+          }));
+
+          setSubtopics(sanitizedSubtopics.length > 0 ? sanitizedSubtopics : [emptySubtopic()]);
         } else {
+          // If no subtopics exist, initialize with one empty one.
           setSubtopics([emptySubtopic()]);
         }
 
@@ -94,10 +100,16 @@ const EditCoursePage = () => {
     fetchCourseData();
   }, [courseId, navigate]);
 
-  // --- Handler Functions ---
-
   const handleCourseChange = e => {
     setCourseInfo({ ...courseInfo, [e.target.name]: e.target.value });
+  };
+
+  const handleThumbnailChange = e => {
+    const file = e.target.files[0];
+    if (file) {
+      setThumbnail(file);
+      setThumbnailPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleSubtopicChange = (idx, field, value) => {
@@ -111,28 +123,36 @@ const EditCoursePage = () => {
 
   const handleNestedChange = (type, sIdx, idx, field, value) => {
     const updated = [...subtopics];
-    updated[sIdx][type][idx][field] = value;
-    setSubtopics(updated);
+    // Defensive check to prevent errors
+    if (updated[sIdx] && updated[sIdx][type] && updated[sIdx][type][idx]) {
+        updated[sIdx][type][idx][field] = value;
+        setSubtopics(updated);
+    }
   };
 
   const handleAddNested = (type, sIdx) => {
     const updated = [...subtopics];
+    // Ensure the array exists before trying to push to it.
+    if (!Array.isArray(updated[sIdx][type])) {
+        updated[sIdx][type] = [];
+    }
     updated[sIdx][type].push(type === 'videos' ? { title: '', link: '' } : { link: '' });
     setSubtopics(updated);
   };
   
   const handleRemoveNested = (type, sIdx, idx) => {
     const updated = [...subtopics];
-    updated[sIdx][type] = updated[sIdx][type].filter((_, i) => i !== idx);
-    setSubtopics(updated);
+    if (updated[sIdx] && Array.isArray(updated[sIdx][type])) {
+        updated[sIdx][type] = updated[sIdx][type].filter((_, i) => i !== idx);
+        setSubtopics(updated);
+    }
   };
 
-  // Function to create the final quiz subtopic object for submission
   const getFinalQuizSubtopic = () => ({
     title: 'Final Quiz',
     videos: [],
     assignments: [],
-    exams: [{ link: finalQuizExamLink }],
+    exams: [{ link: finalQuizExamLink || '' }],
   });
 
   const handleSubmit = async e => {
@@ -146,26 +166,27 @@ const EditCoursePage = () => {
       return;
     }
 
-    // Construct the request body, combining regular subtopics and the final quiz
-    const requestBody = {
-      title: courseInfo.title,
-      description: courseInfo.description,
-      price: courseInfo.price,
-      subtopics: [
+    const formData = new FormData();
+    formData.append('title', courseInfo.title);
+    formData.append('description', courseInfo.description);
+    formData.append('price', courseInfo.price);
+    formData.append('trailerLink', trailerLink);
+    if (thumbnail) {
+        formData.append('thumbnail', thumbnail);
+    }
+    formData.append('subtopics', JSON.stringify([
         ...subtopics,
         getFinalQuizSubtopic(),
-      ],
-    };
+    ]));
 
     const token = localStorage.getItem('token');
     try {
       const response = await fetch(`http://localhost:5001/api/teacher/courses/${courseId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(requestBody),
+        body: formData,
       });
       
       if (response.ok) {
@@ -182,10 +203,8 @@ const EditCoursePage = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="text-center">
-          <p>Loading course data...</p>
-        </div>
+      <div className="container mx-auto px-4 py-8 max-w-3xl text-center">
+        <p>Loading course data...</p>
       </div>
     );
   }
@@ -227,6 +246,38 @@ const EditCoursePage = () => {
               rows={4}
               required
             />
+             {/* Trailer Link Input */}
+            <div className="flex items-center gap-2">
+                <Youtube className="h-6 w-6 text-red-500" />
+                <input
+                    name="trailerLink"
+                    value={trailerLink}
+                    onChange={e => setTrailerLink(e.target.value)}
+                    placeholder="Course Trailer Link (e.g., YouTube embed URL)"
+                    className="w-full p-3 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition"
+                />
+            </div>
+            {/* Thumbnail Upload */}
+            <div className="flex items-center gap-2">
+                <Image className="h-6 w-6 text-green-500" />
+                <label htmlFor="thumbnail-upload" className="w-full p-3 border border-purple-200 rounded-lg cursor-pointer hover:bg-purple-50 transition">
+                    {thumbnail ? `New: ${thumbnail.name}` : 'Change Course Thumbnail'}
+                </label>
+                <input
+                    id="thumbnail-upload"
+                    name="thumbnail"
+                    type="file"
+                    onChange={handleThumbnailChange}
+                    className="hidden"
+                    accept="image/*"
+                />
+            </div>
+            {thumbnailPreview && (
+                <div className="mt-4">
+                    <p className="font-semibold text-gray-700">Thumbnail Preview:</p>
+                    <img src={thumbnailPreview} alt="Thumbnail Preview" className="mt-2 rounded-lg max-h-48 shadow-md" />
+                </div>
+            )}
           </div>
           {/* Subtopics */}
           <div className="space-y-8">
@@ -252,7 +303,7 @@ const EditCoursePage = () => {
                 <div className="flex items-center gap-3 mb-2">
                   <FileText className="h-5 w-5 text-purple-400" />
                   <input
-                    value={sub.title}
+                    value={sub.title || ''}
                     onChange={e => handleSubtopicChange(sIdx, 'title', e.target.value)}
                     placeholder="Subsection Title"
                     className="flex-1 p-2 border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition"
@@ -262,17 +313,17 @@ const EditCoursePage = () => {
                 {/* Videos */}
                 <div className="ml-4 mb-2">
                   <div className="flex items-center gap-2 mb-1 font-semibold text-gray-700"><PlayCircle className="h-4 w-4 text-purple-500" /> Videos</div>
-                  {sub.videos.map((v, idx) => (
+                  {(sub.videos || []).map((v, idx) => (
                     <div key={idx} className="flex gap-2 mb-1">
                       <input
-                        value={v.title}
+                        value={v.title || ''}
                         onChange={e => handleNestedChange('videos', sIdx, idx, 'title', e.target.value)}
                         placeholder="Video Title"
                         className="flex-1 p-2 border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition"
                         required
                       />
                       <input
-                        value={v.link}
+                        value={v.link || ''}
                         onChange={e => handleNestedChange('videos', sIdx, idx, 'link', e.target.value)}
                         placeholder="Video Link (embed URL)"
                         className="flex-1 p-2 border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition"
@@ -286,36 +337,32 @@ const EditCoursePage = () => {
                 {/* Assignments */}
                 <div className="ml-4 mb-2">
                   <div className="flex items-center gap-2 mb-1 font-semibold text-gray-700"><FileCheck2 className="h-4 w-4 text-blue-500" /> Assignments</div>
-                  {sub.assignments.map((a, idx) => (
+                  {(sub.assignments || []).map((a, idx) => (
                     <div key={idx} className="flex gap-2 mb-1">
                       <input
-                        value={a.link}
+                        value={a.link || ''}
                         onChange={e => handleNestedChange('assignments', sIdx, idx, 'link', e.target.value)}
                         placeholder="Assignment Link (URL)"
                         className="flex-1 p-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition"
                         required
                       />
-                       <button type="button" onClick={() => handleRemoveNested('assignments', sIdx, idx)} className="text-red-500 hover:text-red-700 bg-red-50 rounded-full p-2 transition" title="Remove Assignment"><Trash2 className="h-5 w-5" /></button>
                     </div>
                   ))}
-                   <button type="button" onClick={() => handleAddNested('assignments', sIdx)} className="text-xs text-blue-600 hover:underline mt-1 font-semibold">+ Add Assignment</button>
                 </div>
                 {/* Exams */}
                 <div className="ml-4">
                   <div className="flex items-center gap-2 mb-1 font-semibold text-gray-700"><FileCheck2 className="h-4 w-4 text-red-500" /> Exams</div>
-                  {sub.exams.map((e, idx) => (
+                  {(sub.exams || []).map((e, idx) => (
                     <div key={idx} className="flex gap-2 mb-1">
                       <input
-                        value={e.link}
+                        value={e.link || ''}
                         onChange={ev => handleNestedChange('exams', sIdx, idx, 'link', ev.target.value)}
                         placeholder="Exam Link (URL)"
                         className="flex-1 p-2 border border-red-200 rounded focus:ring-2 focus:ring-red-400 focus:border-red-400 transition"
                         required
                       />
-                       <button type="button" onClick={() => handleRemoveNested('exams', sIdx, idx)} className="text-red-500 hover:text-red-700 bg-red-50 rounded-full p-2 transition" title="Remove Exam"><Trash2 className="h-5 w-5" /></button>
                     </div>
                   ))}
-                   <button type="button" onClick={() => handleAddNested('exams', sIdx)} className="text-xs text-red-600 hover:underline mt-1 font-semibold">+ Add Exam</button>
                 </div>
               </div>
             ))}

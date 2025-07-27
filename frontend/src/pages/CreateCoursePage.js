@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, FileText, PlayCircle, FileCheck2 } from 'lucide-react';
+import { Plus, Trash2, FileText, PlayCircle, FileCheck2, Image, Youtube } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const emptySubtopic = () => ({
@@ -16,12 +16,25 @@ const CreateCoursePage = () => {
     description: '',
     price: '',
   });
+  // State for thumbnail and trailer link
+  const [trailerLink, setTrailerLink] = useState('');
+  const [thumbnail, setThumbnail] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState('');
+
   const [subtopics, setSubtopics] = useState([emptySubtopic()]);
-  // Add state for final quiz exam link
   const [finalQuizExamLink, setFinalQuizExamLink] = useState('');
 
   const handleCourseChange = e => {
     setCourseInfo({ ...courseInfo, [e.target.name]: e.target.value });
+  };
+  
+  // Handler for thumbnail file selection
+  const handleThumbnailChange = e => {
+    const file = e.target.files[0];
+    if (file) {
+      setThumbnail(file);
+      setThumbnailPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleSubtopicChange = (idx, field, value) => {
@@ -50,37 +63,44 @@ const CreateCoursePage = () => {
     setSubtopics(updated);
   };
 
-  // Add a final quiz subsection to the form data before submit
   const getFinalQuizSubtopic = () => ({
     title: 'Final Quiz',
     videos: [],
     assignments: [],
-    exams: [{ link: '' }],
+    exams: [{ link: finalQuizExamLink }],
   });
 
+  // Updated handleSubmit to use FormData for file upload
   const handleSubmit = async e => {
     e.preventDefault();
     if (subtopics.length === 0) {
       alert('At least one subsection is required.');
       return;
     }
+    if (!thumbnail) {
+        alert('A course thumbnail is required.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('title', courseInfo.title);
+    formData.append('description', courseInfo.description);
+    formData.append('price', courseInfo.price);
+    formData.append('trailerLink', trailerLink);
+    formData.append('thumbnail', thumbnail);
+    formData.append('subtopics', JSON.stringify([
+        ...subtopics,
+        getFinalQuizSubtopic(),
+    ]));
+
     const token = localStorage.getItem('token');
     try {
       const response = await fetch('http://localhost:5001/api/teacher/courses', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          title: courseInfo.title,
-          description: courseInfo.description,
-          price: courseInfo.price,
-          subtopics: [
-            ...subtopics,
-            getFinalQuizSubtopic(),
-          ],
-        }),
+        body: formData,
       });
       if (response.ok) {
         alert('Course created successfully!');
@@ -132,6 +152,39 @@ const CreateCoursePage = () => {
               rows={4}
               required
             />
+             {/* Trailer Link Input */}
+            <div className="flex items-center gap-2">
+                <Youtube className="h-6 w-6 text-red-500" />
+                <input
+                    name="trailerLink"
+                    value={trailerLink}
+                    onChange={e => setTrailerLink(e.target.value)}
+                    placeholder="Course Trailer Link (e.g., YouTube embed URL)"
+                    className="w-full p-3 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition"
+                />
+            </div>
+            {/* Thumbnail Upload */}
+            <div className="flex items-center gap-2">
+                <Image className="h-6 w-6 text-green-500" />
+                <label htmlFor="thumbnail-upload" className="w-full p-3 border border-purple-200 rounded-lg cursor-pointer hover:bg-purple-50 transition">
+                    {thumbnail ? `Selected: ${thumbnail.name}` : 'Upload Course Thumbnail*'}
+                </label>
+                <input
+                    id="thumbnail-upload"
+                    name="thumbnail"
+                    type="file"
+                    onChange={handleThumbnailChange}
+                    className="hidden"
+                    accept="image/*"
+                    required
+                />
+            </div>
+            {thumbnailPreview && (
+                <div className="mt-4">
+                    <p className="font-semibold text-gray-700">Thumbnail Preview:</p>
+                    <img src={thumbnailPreview} alt="Thumbnail Preview" className="mt-2 rounded-lg max-h-48 shadow-md" />
+                </div>
+            )}
           </div>
           {/* Subtopics */}
           <div className="space-y-8">
@@ -143,7 +196,6 @@ const CreateCoursePage = () => {
             </div>
             {subtopics.map((sub, sIdx) => (
               <div key={sIdx} className="bg-white/90 border border-purple-100 rounded-xl shadow p-6 mb-2 space-y-4 relative">
-                {/* Remove Subsection Button - floating above top right */}
                 <button
                   type="button"
                   onClick={() => handleRemoveSubtopic(sIdx)}
@@ -236,7 +288,7 @@ const CreateCoursePage = () => {
                   value={finalQuizExamLink}
                   onChange={e => setFinalQuizExamLink(e.target.value)}
                   placeholder="Final Quiz Exam Link (URL)"
-                  className="flex-1 p-2 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition bg-yellow-50"
+                  className="w-full p-2 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition bg-yellow-50"
                   required
                 />
               </div>
@@ -251,4 +303,4 @@ const CreateCoursePage = () => {
   );
 };
 
-export default CreateCoursePage; 
+export default CreateCoursePage;

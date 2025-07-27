@@ -153,6 +153,25 @@ const CourseDetailPage = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column (Main Content) */}
                     <div className="lg:col-span-2 space-y-8">
+
+                        {/* **NEW** Trailer Video Section */}
+                        {course.trailerLink && (
+                            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/80">
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4">Course Trailer</h2>
+                                <div className="aspect-w-16 aspect-h-9">
+                                  <iframe 
+                                    className="w-full h-full rounded-lg"
+                                    style={{aspectRatio: '16 / 9'}}
+                                    src={course.trailerLink} 
+                                    title="Course Trailer" 
+                                    frameBorder="0" 
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                    allowFullScreen>
+                                  </iframe>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/80">
                             <h2 className="text-2xl font-bold text-gray-800 mb-4">Course Content</h2>
                             <div className="space-y-2">
@@ -170,6 +189,16 @@ const CourseDetailPage = () => {
                     {/* Right Column (Sticky Purchase Card) */}
                     <div className="lg:col-span-1">
                         <div className="bg-white rounded-xl shadow-2xl sticky top-24 border border-gray-200/80">
+                            
+                            {/* **NEW** Thumbnail Image */}
+                            {course.thumbnail_base64 && (
+                                <img 
+                                    src={`data:image/png;base64,${course.thumbnail_base64}`} 
+                                    alt={`${course.title} thumbnail`} 
+                                    className="w-full h-auto object-cover rounded-t-xl"
+                                />
+                            )}
+                            
                             <div className="p-6">
                                 <p className="text-4xl font-bold text-gray-900 mb-4">{formatPrice(course.price)}</p>
                                 
