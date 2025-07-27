@@ -37,6 +37,48 @@ app.get('/api/v1/courses', async (req, res) => {
   }
 });
 
+// NEW: Search for courses
+app.get('/api/v1/courses/search', async (req, res) => {
+  try {
+    const { query } = req.query; // Get search term from query parameter
+
+    if (!query) {
+      return res.status(400).json({ msg: 'Search query is required' });
+    }
+
+    // SQL query to search in Title, Description, and Instructor Name (by joining Person table)
+    // ILIKE is used for case-insensitive searching
+    const result = await db.query(
+      `SELECT 
+         c."Course_ID", 
+         c."Title", 
+         c."Description", 
+         c."Price", 
+         p."Name" as instructor,
+         encode(c."Thumbnail", 'base64') as thumbnail_base64 
+       FROM "Course" c
+       JOIN "Person" p ON c."Author_ID" = p."Person_ID"
+       WHERE 
+         c."Title" ILIKE $1 OR 
+         c."Description" ILIKE $1 OR
+         p."Name" ILIKE $1`,
+      [`%${query}%`] // '%' wildcards match any sequence of characters
+    );
+
+    res.status(200).json({
+      status: 'success',
+      results: result.rows.length,
+      data: {
+        courses: result.rows,
+      },
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+
 // Endpoint to serve a course's thumbnail image
 app.get('/api/courses/:courseId/thumbnail', async (req, res) => {
     const { courseId } = req.params;
