@@ -8,6 +8,14 @@ const COURSES_PER_PAGE = 20;
 const CourseCard = ({ course }) => {
     const navigate = useNavigate();
 
+    // Function to truncate description
+    const truncateDescription = (text, maxLength = 100) => {
+        if (!text || text.length <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength) + '...';
+    };
+
     return (
         <div 
             onClick={() => navigate(`/course/${course.Course_ID}`)}
@@ -23,13 +31,15 @@ const CourseCard = ({ course }) => {
                  ) : (
                     <>
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-indigo-600 opacity-80"></div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <h3 className="text-white text-xl font-bold text-center p-4">{course.Title}</h3>
+                        <div className="absolute inset-0 flex items-center justify-center p-4">
+                            <h3 className="text-white text-xl font-bold text-center">{course.Title}</h3>
                         </div>
                     </>
                  )}
             </div>
             <div className="p-5 flex-grow flex flex-col">
+                <h4 className="font-bold text-lg text-gray-800 mb-2 h-14 overflow-hidden">{course.Title}</h4>
+                <p className="text-sm text-gray-600 mb-3 flex-grow">{truncateDescription(course.Description)}</p>
                 <p className="text-sm text-gray-500 mb-2">By {course.instructor || 'LearnIT Staff'}</p>
                  <div className="flex items-center mb-4">
                     <StarRating rating={course.rating || 4.5} reviews={course.reviews || (Math.random() * 1000).toFixed(0)} />

@@ -22,8 +22,18 @@ app.use(express.json());
 // Get all courses (for the main page)
 app.get('/api/v1/courses', async (req, res) => {
   try {
-    // Select all course data. The thumbnail is converted to a base64 string.
-    const result = await db.query('SELECT "Course_ID", "Title", "Description", "Price", encode("Thumbnail", \'base64\') as thumbnail_base64 FROM "Course"');
+    // UPDATED: Joined with Person table to get instructor name
+    const result = await db.query(
+        `SELECT 
+            c."Course_ID", 
+            c."Title", 
+            c."Description", 
+            c."Price", 
+            p."Name" as instructor,
+            encode(c."Thumbnail", 'base64') as thumbnail_base64 
+         FROM "Course" c
+         JOIN "Person" p ON c."Author_ID" = p."Person_ID"`
+    );
     res.status(200).json({
       status: 'success',
       results: result.rows.length,

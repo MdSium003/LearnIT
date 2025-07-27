@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Star, ArrowRight } from 'lucide-react';
+import { Star, ArrowRight, Loader } from 'lucide-react';
 
-// This can be the same CourseCard component used in AllCoursesPage
-// For simplicity, it's defined here, but ideally, it would be in its own file.
+// --- Reusable Course Card Component ---
 const CourseCard = ({ course }) => {
     const navigate = useNavigate();
-
-    // Correctly access the course ID from the data
     const courseId = course.Course_ID || course.id;
+
+    const truncateDescription = (text, maxLength = 100) => {
+        if (!text || text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    };
 
     return (
         <div 
@@ -19,25 +21,27 @@ const CourseCard = ({ course }) => {
                  {course.thumbnail_base64 ? (
                     <img 
                         src={`data:image/png;base64,${course.thumbnail_base64}`} 
-                        alt={`${course.Title || course.title} thumbnail`}
+                        alt={`${course.title} thumbnail`}
                         className="w-full h-full object-cover"
                     />
                  ) : (
                     <>
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-indigo-600 opacity-80"></div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <h3 className="text-white text-xl font-bold text-center p-4">{course.Title || course.title}</h3>
+                        <div className="absolute inset-0 flex items-center justify-center p-4">
+                            <h3 className="text-white text-xl font-bold text-center">{course.title}</h3>
                         </div>
                     </>
                  )}
             </div>
             <div className="p-5 flex-grow flex flex-col">
+                <h4 className="font-bold text-lg text-gray-800 mb-2 h-14 overflow-hidden">{course.title}</h4>
+                <p className="text-sm text-gray-600 mb-3 flex-grow">{truncateDescription(course.description)}</p>
                 <p className="text-sm text-gray-500 mb-2">By {course.instructor || 'LearnIT Staff'}</p>
                 <div className="flex items-center mb-4">
                     <StarRating rating={course.rating || 4.5} reviews={course.reviews || (Math.random() * 200).toFixed(0)} />
                 </div>
                 <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-center">
-                    <p className="text-xl font-bold text-gray-900">{course.Price > 0 ? `$${course.Price}`: 'Free'}</p>
+                    <p className="text-xl font-bold text-gray-900">{course.price > 0 ? `$${course.price}`: 'Free'}</p>
                     <span className="text-purple-600 group-hover:text-purple-700 font-semibold text-sm flex items-center">
                         View Details <ArrowRight className="h-4 w-4 ml-1 transition-transform duration-300 group-hover:translate-x-1" />
                     </span>
@@ -47,7 +51,7 @@ const CourseCard = ({ course }) => {
     );
 };
 
-// A simple StarRating component to be used in the card
+// --- Star Rating Component ---
 const StarRating = ({ rating, reviews }) => {
     const fullStars = Math.floor(rating);
     const halfStar = rating % 1 !== 0;
@@ -63,9 +67,59 @@ const StarRating = ({ rating, reviews }) => {
     );
 };
 
+// --- Main HomePage Component ---
+const HomePage = () => {
+    const [courses, setCourses] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-const HomePage = ({ courses, isLoading }) => {
-    // Use a slice of courses for the featured section
+    useEffect(() => {
+        // Function to shuffle an array (Fisher-Yates shuffle)
+        const shuffleArray = (array) => {
+            let currentIndex = array.length,  randomIndex;
+            // While there remain elements to shuffle.
+            while (currentIndex !== 0) {
+                // Pick a remaining element.
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                // And swap it with the current element.
+                [array[currentIndex], array[randomIndex]] = [
+                    array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        const fetchCourses = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch('http://localhost:5001/api/v1/courses');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch courses');
+                }
+                const data = await response.json();
+                
+                const formattedCourses = data.data.courses.map(c => ({
+                    ...c,
+                    title: c.Title,
+                    description: c.Description,
+                    instructor: c.instructor,
+                    price: c.Price,
+                    Course_ID: c.Course_ID
+                }));
+
+                // Shuffle the courses before setting them in state
+                setCourses(shuffleArray(formattedCourses));
+
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchCourses();
+    }, []);
+
     const featuredCourses = courses.slice(0, 8);
 
     return (
@@ -98,11 +152,18 @@ const HomePage = ({ courses, isLoading }) => {
                         <p className="text-lg text-gray-600 mt-2">Hand-picked courses to get you started</p>
                     </div>
                     {isLoading ? (
-                        <div className="text-center">Loading courses...</div>
+                        <div className="flex justify-center items-center py-20">
+                            <Loader className="h-8 w-8 text-purple-600 animate-spin" />
+                            <span className="ml-4 text-lg text-gray-600">Loading Courses...</span>
+                        </div>
+                    ) : error ? (
+                        <div className="text-center py-20 text-red-500">
+                            <p>Error: {error}</p>
+                        </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                             {featuredCourses.map(course => (
-                                <CourseCard key={course.Course_ID || course.id} course={course} />
+                                <CourseCard key={course.Course_ID} course={course} />
                             ))}
                         </div>
                     )}
