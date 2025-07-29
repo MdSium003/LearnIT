@@ -33,7 +33,7 @@ const Navbar = ({ user, handleLogout }) => {
   // State for the new logo animation
   const [animatedWord, setAnimatedWord] = useState('LearnIT');
   const [animationClass, setAnimationClass] = useState('slide-in-up');
-  const words = ['LearnIT', 'ENHANCE', 'EXCELLENCE' ,'SKILLS', 'WORK','KNOWLEDGE', 'TALENT', 'GROWTH',  'SUCCESS'];
+    const words = ['LearnIT', 'ENHANCE', 'EXCELLENCE' ,'SKILLS', 'WORK','KNOWLEDGE', 'TALENT', 'GROWTH',  'SUCCESS'];
   const wordIndexRef = useRef(0);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ const Navbar = ({ user, handleLogout }) => {
         setAnimatedWord(words[wordIndexRef.current]);
         setAnimationClass('slide-in-up'); // Animate in
       }, 1000); // This duration should match the CSS animation duration
-    }, 3000); // This is the time each word is displayed on screen
+    }, 50000); // This is the time each word is displayed on screen
 
     return () => clearInterval(interval);
   }, []);
