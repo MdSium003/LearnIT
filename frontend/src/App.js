@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import AdminLayout from './components/AdminLayout';
 import HomePage from './pages/HomePage';
 import CourseDetailPage from './pages/CourseDetailPage';
 import LoginPage from './pages/LoginPage';
@@ -21,18 +22,20 @@ import CreateCoursePage from './pages/CreateCoursePage';
 import EditCoursePage from './pages/EditCoursePage';
 import ManageNoticesPage from './pages/ManageNoticesPage';
 import EditProfilePage from './pages/EditProfilePage'; 
-// Import the new CourseMarksPage
 import CourseMarksPage from './pages/CourseMarksPage';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminCourseDetailPage from './pages/AdminCourseDetailPage';
+import AdminProfilePage from './pages/AdminProfilePage';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 export default function App() {
-  const [selectedCourse, setSelectedCourse] = useState(null);
   const [courses, setCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     document.title = 'LearnIT - Enchance Your Skills';
@@ -42,15 +45,23 @@ export default function App() {
     try {
       const token = localStorage.getItem('token');
       const userData = localStorage.getItem('user');
-      if (token && userData) {
+      const role = localStorage.getItem('role');
+      if (token && userData && role) {
         setUser(JSON.parse(userData));
+        setUserRole(role);
       }
     } catch (error) {
       console.error("Failed to parse user data from localStorage", error);
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
+      localStorage.clear();
     }
   }, []);
+
+  // NEW: Add effect to redirect admin users
+  useEffect(() => {
+    if (userRole === 'admin' && !location.pathname.startsWith('/admin')) {
+        navigate('/admin/dashboard', { replace: true });
+    }
+  }, [userRole, location.pathname, navigate]);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -60,7 +71,7 @@ export default function App() {
         const transformedCourses = response.data.data.courses.map(course => ({
           id: course.Course_ID,
           title: course.Title,
-          instructor: course.instructor_name,
+          instructor: course.instructor,
           rating: (Math.random() * (5 - 4.2) + 4.2),
           reviews: Math.floor(Math.random() * 200000),
           price: course.Price,
@@ -68,10 +79,6 @@ export default function App() {
           imageUrl: `https://placehold.co/300x170/E2E8F0/4A5568?text=${encodeURIComponent(course.Title.substring(0, 15))}`,
           bestseller: Math.random() > 0.5,
           shortDescription: course.Description,
-          reviewsList: [
-              { id: 1, user: 'Student A', rating: 5, comment: 'Absolutely fantastic course! Covered everything I needed and more.' },
-              { id: 2, user: 'Student B', rating: 4, comment: 'Very comprehensive. A bit fast-paced at times, but the content is top-notch.' },
-          ]
         }));
         setCourses(transformedCourses);
       } catch (error) {
@@ -80,19 +87,23 @@ export default function App() {
         setIsLoading(false);
       }
     };
-    fetchCourses();
-  }, []);
+    if(userRole !== 'admin') {
+        fetchCourses();
+    }
+  }, [userRole]);
 
-  const handleLogin = (userData, token) => {
+  const handleLogin = (userData, token, role) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('role', role);
     setUser(userData);
+    setUserRole(role);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.clear();
     setUser(null);
+    setUserRole(null);
     setCartItems([]);
     navigate('/login');
   };
@@ -112,6 +123,22 @@ export default function App() {
       prevItems.filter(item => item.id !== courseIdToRemove)
     );
   };
+  
+  const isAdminSection = userRole === 'admin';
+
+  if (isAdminSection) {
+      return (
+          <Routes>
+              <Route path="/admin" element={<AdminLayout handleLogout={handleLogout} />}>
+                  <Route path="dashboard" element={<AdminDashboardPage />} />
+                  <Route path="course/:courseId" element={<AdminCourseDetailPage />} />
+                  <Route path="profile" element={<AdminProfilePage />} />
+              </Route>
+               {/* Redirect any other path to the admin dashboard */}
+              <Route path="*" element={<AdminDashboardRedirect />} />
+          </Routes>
+      )
+  }
 
   return (
     <div className="font-sans antialiased text-gray-900 bg-gray-50 min-h-screen flex flex-col">
@@ -137,7 +164,6 @@ export default function App() {
           <Route path="/teacher/courses/create" element={<CreateCoursePage />} />
           <Route path="/teacher/courses/:courseId/edit" element={<EditCoursePage />} />
           <Route path="/teacher/courses/:courseId/notices" element={<ManageNoticesPage />} />
-          {/* Add the new route for the marks page */}
           <Route path="/teacher/courses/:courseId/marks" element={<CourseMarksPage />} />
         </Routes>
       </main>
@@ -145,3 +171,12 @@ export default function App() {
     </div>
   );
 }
+
+// A simple component to handle redirection for admins
+const AdminDashboardRedirect = () => {
+    const navigate = useNavigate();
+    useEffect(() => {
+        navigate('/admin/dashboard', { replace: true });
+    }, [navigate]);
+    return null;
+};

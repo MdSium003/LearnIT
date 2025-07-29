@@ -17,12 +17,43 @@ app.use(cors());
 app.use(express.json());
 
 
+// --- AUTH MIDDLEWARE ---
+
+const authenticateJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ msg: 'No token, authorization denied' });
+  const token = authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ msg: 'No token, authorization denied' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(401).json({ msg: 'Token is not valid' });
+    req.user = decoded.user;
+    next();
+  });
+};
+
+// NEW: Admin authentication middleware
+const isAdmin = async (req, res, next) => {
+    const userId = req.user.id;
+    try {
+        const userResult = await db.query('SELECT "IS_ADMIN" FROM "Person" WHERE "Person_ID" = $1', [userId]);
+        if (userResult.rows.length === 0 || !userResult.rows[0].IS_ADMIN) {
+            return res.status(403).json({ msg: 'Access denied. Administrator privileges required.' });
+        }
+        next();
+    } catch (err) {
+        console.error('Admin check failed:', err.message);
+        res.status(500).json({ msg: 'Server Error' });
+    }
+};
+
+
 // --- API ROUTES ---
 
 // Get all courses (for the main page)
 app.get('/api/v1/courses', async (req, res) => {
   try {
-    // UPDATED: Joined with Person table to get instructor name
+    // UPDATED: Joined with Person table to get instructor name and filter by status = 'accepted'
     const result = await db.query(
         `SELECT 
             c."Course_ID", 
@@ -32,7 +63,8 @@ app.get('/api/v1/courses', async (req, res) => {
             p."Name" as instructor,
             encode(c."Thumbnail", 'base64') as thumbnail_base64 
          FROM "Course" c
-         JOIN "Person" p ON c."Author_ID" = p."Person_ID"`
+         JOIN "Person" p ON c."Author_ID" = p."Person_ID"
+         WHERE c."Status" = 'accepted'`
     );
     res.status(200).json({
       status: 'success',
@@ -69,9 +101,9 @@ app.get('/api/v1/courses/search', async (req, res) => {
        FROM "Course" c
        JOIN "Person" p ON c."Author_ID" = p."Person_ID"
        WHERE 
-         c."Title" ILIKE $1 OR 
+         (c."Title" ILIKE $1 OR 
          c."Description" ILIKE $1 OR
-         p."Name" ILIKE $1`,
+         p."Name" ILIKE $1) AND c."Status" = 'accepted'`,
       [`%${query}%`] // '%' wildcards match any sequence of characters
     );
 
@@ -122,12 +154,12 @@ app.get('/api/v1/courses/:id', async (req, res) => {
              FROM "Course" c
              JOIN "Person" p ON c."Author_ID" = p."Person_ID"
              LEFT JOIN "Video" v ON c."Trailer_ID" = v."Video_ID"
-             WHERE c."Course_ID" = $1`,
+             WHERE c."Course_ID" = $1 AND c."Status" = 'accepted'`,
             [id]
         );
 
         if (courseResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Course not found' });
+            return res.status(404).json({ error: 'Course not found or not approved' });
         }
         const course = courseResult.rows[0];
 
@@ -279,16 +311,135 @@ app.post('/api/v1/login', async (req, res) => {
 });
 
 
-const authenticateJWT = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ msg: 'No token, authorization denied' });
-  const token = authHeader.split(' ')[1];
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(401).json({ msg: 'Token is not valid' });
-    req.user = decoded.user;
-    next();
-  });
-};
+// --- NEW: ADMIN ROUTES ---
+
+// GET courses for admin dashboard (by status)
+app.get('/api/v1/admin/courses', authenticateJWT, isAdmin, async (req, res) => {
+    const { status } = req.query; // e.g., 'pending' or 'accepted,declined'
+    
+    if (!status) {
+        return res.status(400).json({ msg: 'Status query parameter is required.' });
+    }
+
+    const statusList = status.split(','); // Handle multiple statuses
+
+    try {
+        const result = await db.query(
+            `SELECT 
+                c."Course_ID", 
+                c."Title", 
+                c."Description", 
+                c."Price", 
+                c."Status",
+                p."Name" as "instructorName"
+             FROM "Course" c
+             JOIN "Person" p ON c."Author_ID" = p."Person_ID"
+             WHERE c."Status" = ANY($1::varchar[])
+             ORDER BY c."Creation_Date" DESC`,
+            [statusList]
+        );
+        
+        res.status(200).json({
+            status: 'success',
+            data: {
+                courses: result.rows,
+            },
+        });
+    } catch (err) {
+        console.error('Error fetching admin courses:', err.message);
+        res.status(500).json({ msg: 'Server Error' });
+    }
+});
+
+// NEW: GET a single course's full details for admin view
+app.get('/api/v1/admin/courses/:courseId', authenticateJWT, isAdmin, async (req, res) => {
+    const { courseId } = req.params;
+
+    try {
+        const courseResult = await db.query(
+            `SELECT 
+                c."Title", 
+                c."Description", 
+                c."Price", 
+                p."Name" as "instructorName",
+                v."Link" as "trailerLink",
+                encode(c."Thumbnail", 'base64') as "thumbnail_base64"
+             FROM "Course" c
+             JOIN "Person" p ON c."Author_ID" = p."Person_ID"
+             LEFT JOIN "Video" v ON c."Trailer_ID" = v."Video_ID"
+             WHERE c."Course_ID" = $1`,
+            [courseId]
+        );
+
+        if (courseResult.rows.length === 0) {
+            return res.status(404).json({ msg: 'Course not found' });
+        }
+        const course = courseResult.rows[0];
+
+        const subtopicsResult = await db.query(
+            'SELECT "Sub_Topic_ID", "Title" FROM "Sub_Topic" WHERE "Course_ID" = $1 ORDER BY "Sub_Topic_ID"',
+            [courseId]
+        );
+        
+        const subtopicsData = await Promise.all(subtopicsResult.rows.map(async (sub) => {
+            const videosResult = await db.query('SELECT "Title", "Link" FROM "Video" WHERE "Sub_Topic_ID" = $1 AND "Course_ID" = $2', [sub.Sub_Topic_ID, courseId]);
+            const assignmentsResult = await db.query('SELECT "Assignment_Link" FROM "Assignment" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]);
+            const examsResult = await db.query('SELECT "Exam_Link" FROM "Exam" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]);
+            
+            return {
+                title: sub.Title,
+                videos: videosResult.rows,
+                assignments: assignmentsResult.rows,
+                exams: examsResult.rows
+            };
+        }));
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                course: {
+                    ...course,
+                    subtopics: subtopicsData
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error('Error fetching course details for admin:', err.message);
+        res.status(500).json({ msg: 'Server Error' });
+    }
+});
+
+
+// PUT (update) course status
+app.put('/api/v1/admin/courses/:courseId/status', authenticateJWT, isAdmin, async (req, res) => {
+    const { courseId } = req.params;
+    const { status } = req.body; // 'accepted' or 'declined'
+
+    if (!status || !['accepted', 'declined'].includes(status)) {
+        return res.status(400).json({ msg: 'Invalid status provided.' });
+    }
+
+    try {
+        const result = await db.query(
+            'UPDATE "Course" SET "Status" = $1 WHERE "Course_ID" = $2 RETURNING "Course_ID"',
+            [status, courseId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ msg: 'Course not found.' });
+        }
+
+        res.status(200).json({
+            status: 'success',
+            msg: `Course status updated to ${status}.`,
+        });
+    } catch (err) {
+        console.error('Error updating course status:', err.message);
+        res.status(500).json({ msg: 'Server Error' });
+    }
+});
+
 
 // --- PROFILE ROUTES ---
 app.get('/api/profile', authenticateJWT, async (req, res) => {

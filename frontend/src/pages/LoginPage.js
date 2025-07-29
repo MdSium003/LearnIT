@@ -79,12 +79,12 @@ const LoginPage = ({ handleLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-10 rounded-xl shadow-2xl relative pt-16">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-2xl relative pt-16">
         {/* Back to Home Button */}
         <button 
           onClick={() => navigate('/')} 
-          className="absolute top-4 left-4 text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 flex items-center p-2 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          className="absolute top-4 left-4 text-gray-500 hover:text-purple-600 flex items-center p-2 rounded-md bg-gray-100 hover:bg-gray-200 transition-colors"
         >
           <ArrowLeft className="h-5 w-5 mr-1" />
           Back to Home
@@ -92,20 +92,20 @@ const LoginPage = ({ handleLogin }) => {
         
         {/* Header */}
         <div>
-          <BookOpen className="mx-auto h-12 w-auto text-purple-600 dark:text-purple-400" />
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+          <BookOpen className="mx-auto h-12 w-auto text-purple-600" />
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Log in to your account
           </h2>
         </div>
 
         {/* Role Selection Tabs */}
-        <div className="flex justify-center rounded-lg p-1 bg-gray-200 dark:bg-gray-700">
+        <div className="flex justify-center rounded-lg p-1 bg-gray-200">
             <button
                 onClick={() => setRole('user')}
                 className={`flex items-center justify-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all ${
                 role === 'user' 
-                    ? 'bg-white dark:bg-gray-900 text-purple-700 dark:text-purple-300 shadow-sm' 
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    ? 'bg-purple-600 text-white shadow-sm' 
+                    : 'text-gray-600 hover:bg-gray-300'
                 }`}
             >
                 <User className="h-4 w-4 mr-2" /> User
@@ -114,8 +114,8 @@ const LoginPage = ({ handleLogin }) => {
                 onClick={() => setRole('admin')}
                 className={`flex items-center justify-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all ${
                 role === 'admin' 
-                    ? 'bg-white dark:bg-gray-900 text-purple-700 dark:text-purple-300 shadow-sm' 
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    ? 'bg-purple-600 text-white shadow-sm' 
+                    : 'text-gray-600 hover:bg-gray-300'
                 }`}
             >
                 <Shield className="h-4 w-4 mr-2" /> Admin
@@ -142,7 +142,7 @@ const LoginPage = ({ handleLogin }) => {
                 type="email" 
                 autoComplete="email" 
                 required 
-                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-t-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm" 
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 bg-white rounded-t-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm" 
                 placeholder="Email address" 
                 value={formData.email} 
                 onChange={handleChange} 
@@ -156,7 +156,7 @@ const LoginPage = ({ handleLogin }) => {
                 type="password" 
                 autoComplete="current-password" 
                 required 
-                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-b-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm" 
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 bg-white rounded-b-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm" 
                 placeholder="Password" 
                 value={formData.password} 
                 onChange={handleChange} 
@@ -166,7 +166,7 @@ const LoginPage = ({ handleLogin }) => {
 
           <div className="flex items-center justify-end">
             <div className="text-sm">
-              <button type="button" className="font-medium text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300"> Forgot your password? </button>
+              <button type="button" className="font-medium text-purple-600 hover:text-purple-500"> Forgot your password? </button>
             </div>
           </div>
 
@@ -182,9 +182,9 @@ const LoginPage = ({ handleLogin }) => {
         </form>
         
         {/* Link to Signup Page */}
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+        <p className="mt-2 text-center text-sm text-gray-600">
           Or{' '}
-          <button onClick={() => navigate('/signup')} className="font-medium text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300">
+          <button onClick={() => navigate('/signup')} className="font-medium text-purple-600 hover:text-purple-500">
             create an account
           </button>
         </p>

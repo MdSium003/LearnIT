@@ -177,3 +177,9 @@ CREATE TABLE "Mark" (
 
 ALTER TABLE "Mark" DROP CONSTRAINT "Mark_pkey";
 ALTER TABLE "Mark" ADD PRIMARY KEY ("Student_ID", "Course_ID", "Sub_Topic_ID");
+
+ALTER TABLE "Course"
+ADD COLUMN "Status" VARCHAR(10) 
+CHECK ("Status" IN ('pending', 'accepted', 'declined')) 
+DEFAULT 'pending';
+
