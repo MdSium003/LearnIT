@@ -169,12 +169,6 @@ const LoginPage = ({ handleLogin }) => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end">
-            <div className="text-sm">
-              <button type="button" className="font-medium text-purple-600 hover:text-purple-500"> Forgot your password? </button>
-            </div>
-          </div>
-
           <div>
             <button 
               type="submit" 
@@ -186,13 +180,15 @@ const LoginPage = ({ handleLogin }) => {
           </div>
         </form>
         
-        {/* Link to Signup Page */}
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <button onClick={() => navigate('/signup')} className="font-medium text-purple-600 hover:text-purple-500">
-            create an account
-          </button>
-        </p>
+        {/* Link to Signup Page - Hidden for Admin */}
+        {role !== 'admin' && (
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Or{' '}
+            <button onClick={() => navigate('/signup')} className="font-medium text-purple-600 hover:text-purple-500">
+              create an account
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );
