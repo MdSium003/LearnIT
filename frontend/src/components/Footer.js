@@ -36,9 +36,9 @@ const Footer = () => {
   ];
   
   const socialMediaLinks = [
-    { name: 'Facebook', icon: Facebook, url: 'https://www.facebook.com/yourplatform' },
-    { name: 'Twitter', icon: Twitter, url: 'https://twitter.com/yourplatform' },
-    { name: 'Instagram', icon: Instagram, url: 'https://instagram.com/yourplatform' },
+    { name: 'Facebook', icon: Facebook, url: 'https://www.facebook.com/LearnIT' },
+    { name: 'Twitter', icon: Twitter, url: 'https://twitter.com/LearnIT' },
+    { name: 'Instagram', icon: Instagram, url: 'https://instagram.com/LearnIT' },
   ];
 
   return (

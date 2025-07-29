@@ -698,12 +698,20 @@ app.get('/api/courses/:courseId/doing', authenticateJWT, async (req, res) => {
   }
 });
 
+// **UPDATED** Get notices for a course (student view)
 app.get('/api/courses/:courseId/notices', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;
   try {
     const result = await db.query(
-      `SELECT n."Notice_ID", n."Title", n."Description", o."Title" as attachment_title, o."Other_ID" as attachment_id
-       FROM "Notice" n LEFT JOIN "Other" o ON n."Attachment_ID" = o."Other_ID"
+      `SELECT 
+         n."Notice_ID", 
+         n."Title", 
+         n."Description", 
+         o."Title" as attachment_title,
+         r."Link" as attachment_link
+       FROM "Notice" n 
+       LEFT JOIN "Other" o ON n."Attachment_ID" = o."Other_ID"
+       LEFT JOIN "Resources" r ON o."Other_ID" = r."Resources_ID"
        WHERE n."Course_ID" = $1 ORDER BY n."Notice_ID" DESC`,
       [courseId]
     );
@@ -855,7 +863,7 @@ app.put('/api/teacher/courses/:courseId', authenticateJWT, upload.single('thumbn
   }
 });
 
-// Get notices for a course (teacher only)
+// **UPDATED** Get notices for a course (teacher only)
 app.get('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;
   const userId = req.user.id;
@@ -863,8 +871,15 @@ app.get('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, r
     const courseCheck = await db.query('SELECT "Course_ID" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
     if (courseCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized or course not found' });
     const result = await db.query(
-      `SELECT n."Notice_ID", n."Title", n."Description", o."Title" as attachment_title, o."Other_ID" as attachment_id
-       FROM "Notice" n LEFT JOIN "Other" o ON n."Attachment_ID" = o."Other_ID"
+      `SELECT 
+         n."Notice_ID", 
+         n."Title", 
+         n."Description", 
+         o."Title" as attachment_title,
+         r."Link" as attachment_link
+       FROM "Notice" n 
+       LEFT JOIN "Other" o ON n."Attachment_ID" = o."Other_ID"
+       LEFT JOIN "Resources" r ON o."Other_ID" = r."Resources_ID"
        WHERE n."Course_ID" = $1 ORDER BY n."Notice_ID" DESC`,
       [courseId]
     );
@@ -875,26 +890,64 @@ app.get('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, r
   }
 });
 
-// Add a new notice
+// **UPDATED** Add a new notice
 app.post('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;
   const userId = req.user.id;
-  const { title, description, attachmentId } = req.body;
-  if (!title || !description) return res.status(400).json({ error: 'Title and description are required' });
-  // **FIX:** Added missing curly braces for the try...catch block
-  try { 
+  const { title, description, attachmentLink } = req.body; // Changed from attachmentId to attachmentLink
+  
+  if (!title || !description) {
+      return res.status(400).json({ error: 'Title and description are required' });
+  }
+
+  try {
+    // Authorize user
     const courseCheck = await db.query('SELECT "Course_ID" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
-    if (courseCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized or course not found' });
+    if (courseCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Not authorized or course not found' });
+    }
+
+    let attachmentId = null;
+
+    // If an attachment link is provided, create the resources in the database
+    if (attachmentLink && attachmentLink.trim() !== '') {
+      await db.query('BEGIN');
+      try {
+        // 1. Insert into Resources and get the new ID
+        const resourceResult = await db.query(
+          'INSERT INTO "Resources" ("Link") VALUES ($1) RETURNING "Resources_ID"',
+          [attachmentLink.trim()]
+        );
+        const resourceId = resourceResult.rows[0].Resources_ID;
+
+        // 2. Insert into "Other" using the new resource ID and the notice title
+        await db.query(
+          'INSERT INTO "Other" ("Other_ID", "Title") VALUES ($1, $2)',
+          [resourceId, title]
+        );
+        
+        attachmentId = resourceId;
+        await db.query('COMMIT');
+      } catch (transactionError) {
+        await db.query('ROLLBACK');
+        console.error('Transaction error creating attachment:', transactionError.message);
+        return res.status(500).json({ error: 'Failed to create attachment resource.' });
+      }
+    }
+
+    // 3. Insert the notice with the new attachment ID (or null if no link was provided)
     const result = await db.query(
       'INSERT INTO "Notice" ("Course_ID", "Title", "Description", "Attachment_ID") VALUES ($1, $2, $3, $4) RETURNING "Notice_ID"',
-      [courseId, title, description, attachmentId || null]
+      [courseId, title, description, attachmentId]
     );
+
     res.status(201).json({ success: true, noticeId: result.rows[0].Notice_ID });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // Delete a notice
 app.delete('/api/teacher/notices/:noticeId', authenticateJWT, async (req, res) => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, Link } from 'lucide-react';
 
 const CourseNoticeBoardPage = () => {
   const { courseId } = useParams();
@@ -49,14 +49,15 @@ const CourseNoticeBoardPage = () => {
               <li key={notice.Notice_ID} className="bg-white rounded-lg shadow p-5 border-l-4 border-yellow-400">
                 <h2 className="text-xl font-bold text-yellow-800 mb-2">{notice.Title}</h2>
                 <p className="text-gray-700 mb-2 whitespace-pre-line">{notice.Description}</p>
-                {notice.attachment_id && (
+                {notice.attachment_link && (
                   <a
-                    href={`#attachment-${notice.attachment_id}`}
-                    className="inline-block mt-2 text-blue-600 hover:underline font-medium"
+                    href={notice.attachment_link}
+                    className="inline-flex items-center gap-2 mt-2 text-blue-600 hover:underline font-medium"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    📎 {notice.attachment_title || 'Attachment'}
+                    <Link className="h-4 w-4" />
+                    {notice.attachment_title || 'View Attachment'}
                   </a>
                 )}
               </li>
@@ -68,4 +69,4 @@ const CourseNoticeBoardPage = () => {
   );
 };
 
-export default CourseNoticeBoardPage; 
+export default CourseNoticeBoardPage;

@@ -45,7 +45,7 @@ const Navbar = ({ user, handleLogout }) => {
         setAnimatedWord(words[wordIndexRef.current]);
         setAnimationClass('slide-in-up'); // Animate in
       }, 1000); // This duration should match the CSS animation duration
-    }, 50000); // This is the time each word is displayed on screen
+    }, 6000); // This is the time each word is displayed on screen
 
     return () => clearInterval(interval);
   }, []);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, FileText, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, FileText, ArrowLeft, Link } from 'lucide-react';
 
 const ManageNoticesPage = () => {
   const { courseId } = useParams();
@@ -11,7 +11,7 @@ const ManageNoticesPage = () => {
   const [newNotice, setNewNotice] = useState({
     title: '',
     description: '',
-    attachmentId: ''
+    attachmentLink: '' // Changed from attachmentId to attachmentLink
   });
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -73,13 +73,13 @@ const ManageNoticesPage = () => {
         body: JSON.stringify({
           title: newNotice.title.trim(),
           description: newNotice.description.trim(),
-          attachmentId: newNotice.attachmentId || null
+          attachmentLink: newNotice.attachmentLink.trim() || null // Changed from attachmentId
         }),
       });
       
       if (response.ok) {
         alert('Notice added successfully!');
-        setNewNotice({ title: '', description: '', attachmentId: '' });
+        setNewNotice({ title: '', description: '', attachmentLink: '' }); // Reset state
         setShowAddForm(false);
         fetchNotices(); // Refresh the list
       } else {
@@ -188,13 +188,13 @@ const ManageNoticesPage = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Attachment ID (Optional)
+                  Attachment Link (Optional)
                 </label>
                 <input
-                  type="number"
-                  value={newNotice.attachmentId}
-                  onChange={(e) => setNewNotice({ ...newNotice, attachmentId: e.target.value })}
-                  placeholder="Enter attachment ID from Other table"
+                  type="url"
+                  value={newNotice.attachmentLink}
+                  onChange={(e) => setNewNotice({ ...newNotice, attachmentLink: e.target.value })}
+                  placeholder="https://example.com/document.pdf"
                   className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
@@ -210,7 +210,7 @@ const ManageNoticesPage = () => {
                   type="button"
                   onClick={() => {
                     setShowAddForm(false);
-                    setNewNotice({ title: '', description: '', attachmentId: '' });
+                    setNewNotice({ title: '', description: '', attachmentLink: '' });
                   }}
                   className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 font-semibold"
                 >
@@ -234,17 +234,25 @@ const ManageNoticesPage = () => {
                       <FileText className="h-5 w-5 text-purple-500" />
                       <h3 className="text-lg font-semibold text-gray-800">{notice.Title}</h3>
                     </div>
-                    <p className="text-gray-600 mb-2">{notice.Description}</p>
-                    {notice.attachment_title && (
-                      <div className="text-sm text-purple-600">
-                        📎 Attachment: {notice.attachment_title}
+                    <p className="text-gray-600 mb-2 whitespace-pre-wrap">{notice.Description}</p>
+                    {notice.attachment_link && (
+                      <div className="mt-2 text-sm text-purple-600 flex items-center gap-2">
+                        <Link className="h-4 w-4" />
+                        <a 
+                          href={notice.attachment_link} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="underline hover:text-purple-800 break-all"
+                        >
+                          {notice.attachment_title || notice.attachment_link}
+                        </a>
                       </div>
                     )}
                   </div>
                   <button
                     onClick={() => handleDeleteNotice(notice.Notice_ID)}
                     disabled={deleting === notice.Notice_ID}
-                    className="ml-4 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded disabled:opacity-50"
+                    className="ml-4 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full disabled:opacity-50"
                     title="Delete Notice"
                   >
                     <Trash2 className="h-5 w-5" />
@@ -259,4 +267,4 @@ const ManageNoticesPage = () => {
   );
 };
 
-export default ManageNoticesPage; 
+export default ManageNoticesPage;
