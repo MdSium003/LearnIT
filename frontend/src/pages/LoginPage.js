@@ -59,6 +59,11 @@ const LoginPage = ({ handleLogin }) => {
         throw new Error(data.msg || 'Something went wrong. Please try again.');
       }
 
+      // NEW: Check if an admin is trying to log in via the user portal
+      if (role === 'user' && data.role === 'admin') {
+        throw new Error('Administrator accounts must use the "Admin" login tab.');
+      }
+
       // Call the parent component's login handler with the user data, token, and role
       handleLogin(data.user, data.token, data.role);
 
