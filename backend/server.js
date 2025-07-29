@@ -211,41 +211,73 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-
+// --- UPDATED LOGIN ROUTE ---
 app.post('/api/v1/login', async (req, res) => {
-  const { email, password } = req.body; 
+  // Destructure email, password, and the new role field from the request body
+  const { email, password, role } = req.body; 
+
   try {
-    const userResult = await db.query('SELECT * FROM "Person" WHERE "Email" = $1', [email]); 
-    if (userResult.rows.length === 0 || !userResult.rows[0].Password) { 
+    // Fetch user from the database. Note the addition of "IS_ADMIN" to the SELECT statement
+    const userResult = await db.query('SELECT *, "IS_ADMIN" FROM "Person" WHERE "Email" = $1', [email]);
+    
+    if (userResult.rows.length === 0) {
       return res.status(401).json({ status: 'fail', msg: 'Invalid email or password.' });
     }
+
     const user = userResult.rows[0];
+
+    // --- NEW: Admin Role Verification ---
+    // If login is attempted as 'admin', check if the IS_ADMIN flag is true in the database
+    if (role === 'admin' && user.IS_ADMIN !== true) {
+        return res.status(403).json({ status: 'fail', msg: 'Access denied. Not an administrator.' });
+    }
+    // --- END: Admin Role Verification ---
+
+    // Check if a password exists for the user before comparing
+    if (!user.Password) {
+        return res.status(401).json({ status: 'fail', msg: 'Invalid email or password.' });
+    }
+
     const isMatch = await bcrypt.compare(password, user.Password);
+    
+    if (!isMatch) {
+      return res.status(401).json({ status: 'fail', msg: 'Invalid email or password.' });
+    }
+    
     const userId = user.Person_ID;
     const payload = { user: { id: userId } };
-    if (isMatch) {
-      jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5h' }, (err, token) => {
-        if (err) throw err;
-        res.status(200).json({
-          status: 'success',
-          token: token,
-          user: {
-            id: user.Person_ID,
-            name: user.Name,
-            email: user.Email,
-            isAuthor: user.Is_Author, 
-          },
-          role: user.Role || 'student', 
-        });
+
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5h' }, (err, token) => {
+      if (err) throw err;
+
+      // Determine the role to send back in the response based on database flags
+      let userRole = 'student'; // Default role
+      if (user.IS_ADMIN === true) {
+          userRole = 'admin';
+      } else if (user.Is_Author === true) {
+          userRole = 'teacher';
+      }
+
+      res.status(200).json({
+        status: 'success',
+        token: token,
+        user: {
+          id: user.Person_ID,
+          name: user.Name,
+          email: user.Email,
+          isAdmin: user.IS_ADMIN, // Explicitly send admin status
+          isAuthor: user.Is_Author,
+        },
+        role: userRole, // Send the determined role to the frontend
       });
-    } else {
-      res.status(401).json({ status: 'fail', msg: 'Invalid email or password.' });
-    }
+    });
+
   } catch (err) {
     console.error('Login error:', err.message);
     res.status(500).json({ msg: 'Server error' });
   }
 });
+
 
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -432,6 +464,13 @@ app.post('/api/teacher/courses', authenticateJWT, upload.single('thumbnail'), as
       [userId, title, description, price, req.file.buffer]
     );
     const courseId = courseResult.rows[0].Course_ID;
+
+    // Automatically enroll the creator in their own course
+    const tranxId = Math.floor(Math.random() * 1000000000);
+    await db.query(
+        'INSERT INTO "Enroll" ("Student_ID", "Course_ID", "Tranx_ID") VALUES ($1, $2, $3) ON CONFLICT ("Student_ID", "Course_ID") DO NOTHING',
+        [userId, courseId, tranxId]
+    );
 
     if (trailerLink) {
       const videoResult = await db.query(
@@ -724,6 +763,113 @@ app.delete('/api/teacher/notices/:noticeId', authenticateJWT, async (req, res) =
     res.status(500).json({ error: err.message });
   }
 });
+
+// --- NEW: MARKS MANAGEMENT ROUTES ---
+
+// GET marks data for a course
+app.get('/api/teacher/courses/:courseId/marks', authenticateJWT, async (req, res) => {
+    const { courseId } = req.params;
+    const userId = req.user.id;
+
+    try {
+        // 1. Authorize: Check if the current user is the author of the course
+        const courseCheck = await db.query('SELECT "Title" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
+        if (courseCheck.rows.length === 0) {
+            return res.status(403).json({ error: 'Not authorized or course not found' });
+        }
+        const courseTitle = courseCheck.rows[0].Title;
+
+        // 2. Get all sub-topics for the course
+        const subTopicsResult = await db.query('SELECT "Sub_Topic_ID", "Title" FROM "Sub_Topic" WHERE "Course_ID" = $1 ORDER BY "Sub_Topic_ID"', [courseId]);
+        const subTopics = subTopicsResult.rows.map(st => ({ sub_topic_id: st.Sub_Topic_ID, title: st.Title }));
+
+        // 3. Get all enrolled students, excluding the author
+        const studentsResult = await db.query(
+            `SELECT p."Person_ID" as student_id, p."Name" as name, p."Email" as email
+             FROM "Enroll" e
+             JOIN "Person" p ON e."Student_ID" = p."Person_ID"
+             WHERE e."Course_ID" = $1 AND e."Student_ID" != $2
+             ORDER BY p."Name"`,
+            [courseId, userId]
+        );
+        const students = studentsResult.rows;
+
+        // 4. Get all existing marks for this course
+        const marksResult = await db.query('SELECT "Student_ID", "Sub_Topic_ID", "Exam_Mark", "COMMENT" FROM "Mark" WHERE "Course_ID" = $1', [courseId]);
+        const allMarks = marksResult.rows;
+
+        // 5. Structure the data for the frontend
+        const studentsWithMarks = students.map(student => {
+            const studentMarks = allMarks
+                .filter(mark => mark.Student_ID === student.student_id)
+                .map(mark => ({
+                    sub_topic_id: mark.Sub_Topic_ID,
+                    exam_mark: mark.Exam_Mark,
+                    comment: mark.COMMENT,
+                }));
+            return { ...student, marks: studentMarks };
+        });
+
+        res.json({
+            courseTitle,
+            subTopics,
+            students: studentsWithMarks,
+        });
+
+    } catch (err) {
+        console.error("Failed to fetch marks data:", err.message);
+        res.status(500).json({ error: 'Server error while fetching marks data.' });
+    }
+});
+
+// POST (save/update) marks for a course
+app.post('/api/teacher/courses/:courseId/marks', authenticateJWT, async (req, res) => {
+    const { courseId } = req.params;
+    const userId = req.user.id;
+    const { marks } = req.body; // Expects an array of mark objects
+
+    if (!Array.isArray(marks)) {
+        return res.status(400).json({ error: 'Invalid data format. "marks" should be an array.' });
+    }
+
+    try {
+        // 1. Authorize: Check if the current user is the author of the course
+        const courseCheck = await db.query('SELECT "Course_ID" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
+        if (courseCheck.rows.length === 0) {
+            return res.status(403).json({ error: 'Not authorized or course not found' });
+        }
+
+        // 2. Use a transaction to save all marks
+        await db.query('BEGIN');
+
+        for (const markData of marks) {
+            const { studentId, subTopicId, mark, comment } = markData;
+            
+            // Use ON CONFLICT to either INSERT a new mark or UPDATE an existing one
+            await db.query(
+                `INSERT INTO "Mark" ("Student_ID", "Course_ID", "Sub_Topic_ID", "Exam_Mark", "COMMENT")
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT ("Student_ID", "Course_ID", "Sub_Topic_ID")
+                 DO UPDATE SET
+                   "Exam_Mark" = EXCLUDED."Exam_Mark",
+                   "COMMENT" = EXCLUDED."COMMENT"`,
+                [studentId, courseId, subTopicId, mark, comment]
+            );
+        }
+
+        await db.query('COMMIT');
+        res.json({ success: true, message: 'Marks saved successfully.' });
+
+    } catch (err) {
+        await db.query('ROLLBACK');
+        console.error("Failed to save marks:", err.message);
+        res.status(500).json({ error: 'Server error while saving marks.' });
+    }
+});
+
+
+// --- END OF MARKS MANAGEMENT ROUTES ---
+
 
 app.delete('/api/courses/:courseId', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;

@@ -20,8 +20,9 @@ import CourseNoticeBoardPage from './pages/CourseNoticeBoardPage';
 import CreateCoursePage from './pages/CreateCoursePage';
 import EditCoursePage from './pages/EditCoursePage';
 import ManageNoticesPage from './pages/ManageNoticesPage';
-// Import the new EditProfilePage
 import EditProfilePage from './pages/EditProfilePage'; 
+// Import the new CourseMarksPage
+import CourseMarksPage from './pages/CourseMarksPage';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 
 export default function App() {
@@ -124,9 +125,7 @@ export default function App() {
           <Route path="/cart" element={<CartPage cartItems={cartItems} removeFromCart={handleRemoveFromCart} />} />
           <Route path="/teach" element={<TeachPage user={user} setUser={setUser} />} />
           <Route path="/all-courses" element={<AllCoursesPage courses={courses} isLoading={isLoading} />} />
-          {/* The ProfilePage now fetches its own data, so no need to pass the user prop */}
           <Route path="/profile" element={<ProfilePage />} />
-          {/* Added the new route for editing the profile */}
           <Route path="/profile/edit" element={<EditProfilePage />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/about" element={<AboutUs />} />
@@ -138,6 +137,8 @@ export default function App() {
           <Route path="/teacher/courses/create" element={<CreateCoursePage />} />
           <Route path="/teacher/courses/:courseId/edit" element={<EditCoursePage />} />
           <Route path="/teacher/courses/:courseId/notices" element={<ManageNoticesPage />} />
+          {/* Add the new route for the marks page */}
+          <Route path="/teacher/courses/:courseId/marks" element={<CourseMarksPage />} />
         </Routes>
       </main>
       <Footer />

@@ -13,6 +13,7 @@ CREATE TABLE "Person" (
   "District" VARCHAR(255) NOT NULL,
   "Country" VARCHAR(255) NOT NULL,
   "Is_Author" BOOLEAN
+  "IS_ADMIN" BOOLEAN DEFAULT FALSE,
 );
 
 CREATE TABLE "Teacher" (
@@ -173,3 +174,6 @@ CREATE TABLE "Mark" (
   FOREIGN KEY ("Student_ID", "Course_ID") REFERENCES "Enroll" ("Student_ID", "Course_ID"),
   FOREIGN KEY ("Sub_Topic_ID") REFERENCES "Sub_Topic" ("Sub_Topic_ID")
 );
+
+ALTER TABLE "Mark" DROP CONSTRAINT "Mark_pkey";
+ALTER TABLE "Mark" ADD PRIMARY KEY ("Student_ID", "Course_ID", "Sub_Topic_ID");
