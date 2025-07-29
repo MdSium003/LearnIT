@@ -28,6 +28,11 @@ import AdminCourseDetailPage from './pages/AdminCourseDetailPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
+// Import the new protected route components
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import TeacherRoute from './components/auth/TeacherRoute';
+import EnrolledRoute from './components/auth/EnrolledRoute';
+
 export default function App() {
   const [courses, setCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,7 +61,6 @@ export default function App() {
     }
   }, []);
 
-  // NEW: Add effect to redirect admin users
   useEffect(() => {
     if (userRole === 'admin' && !location.pathname.startsWith('/admin')) {
         navigate('/admin/dashboard', { replace: true });
@@ -134,7 +138,6 @@ export default function App() {
                   <Route path="course/:courseId" element={<AdminCourseDetailPage />} />
                   <Route path="profile" element={<AdminProfilePage />} />
               </Route>
-               {/* Redirect any other path to the admin dashboard */}
               <Route path="*" element={<AdminDashboardRedirect />} />
           </Routes>
       )
@@ -145,26 +148,45 @@ export default function App() {
       <Navbar user={user} handleLogout={handleLogout} />
       <main className="flex-grow">
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<HomePage courses={courses} isLoading={isLoading} />} />
           <Route path="/course/:id" element={<CourseDetailPage courses={courses} addToCart={handleAddToCart} cartItems={cartItems} />} />
           <Route path="/login" element={<LoginPage handleLogin={handleLogin} />} />
           <Route path="/signup" element={<SignupPage handleLogin={handleLogin} />} />
-          <Route path="/cart" element={<CartPage cartItems={cartItems} removeFromCart={handleRemoveFromCart} />} />
-          <Route path="/teach" element={<TeachPage user={user} setUser={setUser} />} />
           <Route path="/all-courses" element={<AllCoursesPage courses={courses} isLoading={isLoading} />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/profile/edit" element={<EditProfilePage />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/search" element={<SearchPage courses={courses} />} />
-          <Route path="/teacher-dashboard" element={<TeacherDashboardPage />} />
-          <Route path="/my-courses" element={<MyCoursesPage user={user} />} />
-          <Route path="/my-courses/:courseId/doing" element={<CourseDoingPage />} />
-          <Route path="/my-courses/:courseId/notices" element={<CourseNoticeBoardPage />} />
-          <Route path="/teacher/courses/create" element={<CreateCoursePage />} />
-          <Route path="/teacher/courses/:courseId/edit" element={<EditCoursePage />} />
-          <Route path="/teacher/courses/:courseId/notices" element={<ManageNoticesPage />} />
-          <Route path="/teacher/courses/:courseId/marks" element={<CourseMarksPage />} />
+
+          {/* Protected Routes for any logged-in user */}
+          <Route element={<ProtectedRoute />}>
+              <Route path="/cart" element={<CartPage cartItems={cartItems} removeFromCart={handleRemoveFromCart} />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/profile/edit" element={<EditProfilePage />} />
+              <Route path="/my-courses" element={<MyCoursesPage user={user} />} />
+              <Route path="/my-courses/:courseId/notices" element={<CourseNoticeBoardPage />} />
+              <Route path="/teach" element={<TeachPage user={user} setUser={setUser} />} />
+              <Route path="/teacher-dashboard" element={<TeacherDashboardPage />} />
+          </Route>
+
+          {/* Protected Route for Enrolled Students */}
+          <Route path="/my-courses/:courseId/doing" element={
+              <ProtectedRoute>
+                  <EnrolledRoute>
+                      <CourseDoingPage />
+                  </EnrolledRoute>
+              </ProtectedRoute>
+          } />
+
+          {/* Protected Routes for Teachers only */}
+          <Route element={<ProtectedRoute />}>
+              <Route element={<TeacherRoute />}>
+                  <Route path="/teacher/courses/create" element={<CreateCoursePage />} />
+                  <Route path="/teacher/courses/:courseId/edit" element={<EditCoursePage />} />
+                  <Route path="/teacher/courses/:courseId/notices" element={<ManageNoticesPage />} />
+                  <Route path="/teacher/courses/:courseId/marks" element={<CourseMarksPage />} />
+              </Route>
+          </Route>
         </Routes>
       </main>
       <Footer />

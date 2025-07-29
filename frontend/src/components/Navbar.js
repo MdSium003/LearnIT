@@ -30,6 +30,27 @@ const Navbar = ({ user, handleLogout }) => {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
+  // State for the new logo animation
+  const [animatedWord, setAnimatedWord] = useState('LearnIT');
+  const [animationClass, setAnimationClass] = useState('slide-in-up');
+  const words = ['LearnIT', 'ENHANCE', 'EXCELLENCE' ,'SKILLS', 'WORK','KNOWLEDGE', 'TALENT', 'GROWTH',  'SUCCESS'];
+  const wordIndexRef = useRef(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnimationClass('slide-out-up'); // Animate out
+
+      setTimeout(() => {
+        wordIndexRef.current = (wordIndexRef.current + 1) % words.length;
+        setAnimatedWord(words[wordIndexRef.current]);
+        setAnimationClass('slide-in-up'); // Animate in
+      }, 1000); // This duration should match the CSS animation duration
+    }, 3000); // This is the time each word is displayed on screen
+
+    return () => clearInterval(interval);
+  }, []);
+
+
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
@@ -58,21 +79,41 @@ const Navbar = ({ user, handleLogout }) => {
       {/* Keyframes for animations */}
       <style>
         {`
-          @keyframes dance1 {
-            0%, 100% { height: 0.75rem; }
-            50% { height: 1.5rem; }
+          @keyframes dance1 { 0%, 100% { height: 0.75rem; } 50% { height: 1.5rem; } }
+          @keyframes dance2 { 0%, 100% { height: 1.5rem; } 50% { height: 0.75rem; } }
+          @keyframes dance3 { 0%, 100% { height: 1rem; } 50% { height: 1.3rem; } }
+          
+          .logo-text-container {
+            width: 180px; 
+            height: 30px;
+            position: relative;
+            overflow: hidden;
           }
-          @keyframes dance2 {
-            0%, 100% { height: 1.5rem; }
-            50% { height: 0.75rem; }
+
+          .animated-word {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start; /* Changed from center to flex-start */
+            font-size: 1.5rem;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            color: white;
           }
-          @keyframes dance3 {
-            0%, 100% { height: 1rem; }
-            50% { height: 1.3rem; }
+          
+          .slide-out-up { animation: slide-out-up 1s ease-in-out forwards; }
+          .slide-in-up { animation: slide-in-up 1s ease-in-out forwards; }
+
+          @keyframes slide-out-up {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-100%); opacity: 0; }
           }
-          @keyframes text-dance {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-3px); }
+          @keyframes slide-in-up {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
           }
         `}
       </style>
@@ -86,13 +127,11 @@ const Navbar = ({ user, handleLogout }) => {
                   <span className="w-1.5 bg-purple-300 rounded-full" style={{ animation: 'dance2 2s ease-in-out infinite 0.2s' }}></span>
                   <span className="w-1.5 bg-purple-400 rounded-full" style={{ animation: 'dance3 2s ease-in-out infinite 0.4s' }}></span>
               </div>
-              <span className="text-2xl font-bold text-white tracking-wider group-hover:text-purple-300 transition-colors duration-300">
-                {'LearnIT'.split('').map((char, index) => (
-                    <span key={index} className="inline-block" style={{ animation: `text-dance 2.5s ease-in-out infinite ${index * 0.1}s` }}>
-                        {char}
-                    </span>
-                ))}
-              </span>
+              <div className="logo-text-container group-hover:text-purple-300 transition-colors duration-300">
+                <span className={`animated-word ${animationClass}`}>
+                  {animatedWord}
+                </span>
+              </div>
             </Link>
 
             {/* Desktop Navigation */}
