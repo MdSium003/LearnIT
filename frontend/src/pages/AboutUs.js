@@ -30,13 +30,19 @@ const AboutUs = () => {
       name: 'Mohammad Sium',
       role: 'Co-Founder & Frontend Lead',
       imageUrl: '/sium_a.jpg',
-      bio: 'Mohammad is the creative force behind LearnIT\'s user experience. With a keen eye for design and a passion for crafting intuitive, beautiful interfaces, he translates complex ideas into seamless digital experiences that make learning a joy. His work is driven by the belief that a great interface can inspire and motivate learners.',
+      bio: "Mohammad is the creative force behind LearnIT's user experience. With a keen eye for design and a passion for crafting intuitive, beautiful interfaces, he translates complex ideas into seamless digital experiences that make learning a joy. His work is driven by the belief that a great interface can inspire and motivate learners.",
     },
     {
       name: 'Atik Khan',
       role: 'Co-Founder & Backend Lead',
       imageUrl: '/atik2.jpg',
       bio: 'Atik is the architectural mastermind of our platform. He specializes in building robust, scalable, and secure server-side systems. His dedication to engineering excellence ensures that LearnIT runs smoothly and reliably for our global community of learners, no matter the demand.',
+    },
+    {
+      name: 'Rabib Jahin Ibn Momin',
+      role: 'Supervisor of the Project',
+      imageUrl: '/rabib.jpg',
+      bio: 'Provided valuable guidance and insightful instructions throughout the project, helping us stay on the right track and improve the overall quality of our work.',
     },
   ];
 
@@ -124,12 +130,13 @@ const AboutUs = () => {
         <section className="py-20 md:py-28">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 tracking-tight fade-in">Meet The Founders</h2>
+              <h2 className="text-4xl font-bold text-gray-900 tracking-tight fade-in">Meet The Team</h2>
               <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto fade-in" style={{ animationDelay: '100ms' }}>
                 The passionate individuals who started it all.
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+            {/* Changed grid classes here for the fix */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
               {teamMembers.map((member, index) => (
                 <div key={index} className="bg-gray-50 rounded-xl shadow-2xl overflow-hidden fade-in transform hover:scale-105 transition-transform duration-300" style={{ animationDelay: `${index * 150 + 200}ms` }}>
                   <div className="relative">
@@ -141,9 +148,9 @@ const AboutUs = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                   </div>
                   <div className="p-8">
-                    <h3 className="text-3xl font-bold text-gray-900">{member.name}</h3>
-                    <p className="text-purple-600 font-semibold text-lg mb-4">{member.role}</p>
-                    <p className="text-gray-600">{member.bio}</p>
+                    <h3 className="text-2xl font-bold text-gray-900">{member.name}</h3>
+                    <p className="text-purple-600 font-semibold text-md mb-4">{member.role}</p>
+                    <p className="text-gray-600 text-sm">{member.bio}</p>
                   </div>
                 </div>
               ))}

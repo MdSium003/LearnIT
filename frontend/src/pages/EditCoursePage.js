@@ -73,7 +73,6 @@ const EditCoursePage = () => {
             setFinalQuizExamLink(finalQuiz.exams[0].link || '');
           }
 
-          // **CRITICAL FIX:** Sanitize the fetched data to ensure all nested arrays exist.
           const sanitizedSubtopics = regularSubtopics.map(sub => ({
             ...sub,
             title: sub.title || '',
@@ -84,7 +83,6 @@ const EditCoursePage = () => {
 
           setSubtopics(sanitizedSubtopics.length > 0 ? sanitizedSubtopics : [emptySubtopic()]);
         } else {
-          // If no subtopics exist, initialize with one empty one.
           setSubtopics([emptySubtopic()]);
         }
 
@@ -123,7 +121,6 @@ const EditCoursePage = () => {
 
   const handleNestedChange = (type, sIdx, idx, field, value) => {
     const updated = [...subtopics];
-    // Defensive check to prevent errors
     if (updated[sIdx] && updated[sIdx][type] && updated[sIdx][type][idx]) {
         updated[sIdx][type][idx][field] = value;
         setSubtopics(updated);
@@ -132,7 +129,6 @@ const EditCoursePage = () => {
 
   const handleAddNested = (type, sIdx) => {
     const updated = [...subtopics];
-    // Ensure the array exists before trying to push to it.
     if (!Array.isArray(updated[sIdx][type])) {
         updated[sIdx][type] = [];
     }

@@ -4,8 +4,10 @@ const cors = require('cors');
 const db = require('./db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-// Import multer for file uploads
 const multer = require('multer');
+const sharp = require('sharp');
+const fs = require('fs').promises; // To read the certificate template from the filesystem
+const path = require('path'); // To create a reliable file path
 
 // Configure multer to store files in memory as buffers
 const upload = multer({ storage: multer.memoryStorage() });
@@ -15,6 +17,8 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+// Serve static files from the 'public' directory
+app.use(express.static('public'));
 
 
 // --- AUTH MIDDLEWARE ---
@@ -32,7 +36,6 @@ const authenticateJWT = (req, res, next) => {
   });
 };
 
-// NEW: Admin authentication middleware
 const isAdmin = async (req, res, next) => {
     const userId = req.user.id;
     try {
@@ -53,15 +56,14 @@ const isAdmin = async (req, res, next) => {
 // Get all courses (for the main page)
 app.get('/api/v1/courses', async (req, res) => {
   try {
-    // UPDATED: Joined with Person table to get instructor name and filter by status = 'accepted'
     const result = await db.query(
-        `SELECT 
-            c."Course_ID", 
-            c."Title", 
-            c."Description", 
-            c."Price", 
+        `SELECT
+            c."Course_ID",
+            c."Title",
+            c."Description",
+            c."Price",
             p."Name" as instructor,
-            encode(c."Thumbnail", 'base64') as thumbnail_base64 
+            encode(c."Thumbnail", 'base64') as thumbnail_base64
          FROM "Course" c
          JOIN "Person" p ON c."Author_ID" = p."Person_ID"
          WHERE c."Status" = 'accepted'`
@@ -79,32 +81,30 @@ app.get('/api/v1/courses', async (req, res) => {
   }
 });
 
-// NEW: Search for courses
+// Search for courses
 app.get('/api/v1/courses/search', async (req, res) => {
   try {
-    const { query } = req.query; // Get search term from query parameter
+    const { query } = req.query;
 
     if (!query) {
       return res.status(400).json({ msg: 'Search query is required' });
     }
 
-    // SQL query to search in Title, Description, and Instructor Name (by joining Person table)
-    // ILIKE is used for case-insensitive searching
     const result = await db.query(
-      `SELECT 
-         c."Course_ID", 
-         c."Title", 
-         c."Description", 
-         c."Price", 
+      `SELECT
+         c."Course_ID",
+         c."Title",
+         c."Description",
+         c."Price",
          p."Name" as instructor,
-         encode(c."Thumbnail", 'base64') as thumbnail_base64 
+         encode(c."Thumbnail", 'base64') as thumbnail_base64
        FROM "Course" c
        JOIN "Person" p ON c."Author_ID" = p."Person_ID"
-       WHERE 
-         (c."Title" ILIKE $1 OR 
+       WHERE
+         (c."Title" ILIKE $1 OR
          c."Description" ILIKE $1 OR
          p."Name" ILIKE $1) AND c."Status" = 'accepted'`,
-      [`%${query}%`] // '%' wildcards match any sequence of characters
+      [`%${query}%`]
     );
 
     res.status(200).json({
@@ -127,7 +127,7 @@ app.get('/api/courses/:courseId/thumbnail', async (req, res) => {
     try {
         const result = await db.query('SELECT "Thumbnail" FROM "Course" WHERE "Course_ID" = $1', [courseId]);
         if (result.rows.length > 0 && result.rows[0].Thumbnail) {
-            res.set('Content-Type', 'image/png'); // Assuming PNG, adjust if you allow other types
+            res.set('Content-Type', 'image/png');
             res.send(result.rows[0].Thumbnail);
         } else {
             res.status(404).json({ error: 'Thumbnail not found' });
@@ -138,16 +138,15 @@ app.get('/api/courses/:courseId/thumbnail', async (req, res) => {
     }
 });
 
-
-// **UPDATED** Get a single course's full details, now includes trailer and thumbnail
+// Get a single course's full details
 app.get('/api/v1/courses/:id', async (req, res) => {
     const { id } = req.params;
     try {
         const courseResult = await db.query(
-            `SELECT 
-                c."Title", 
-                c."Description", 
-                c."Price", 
+            `SELECT
+                c."Title",
+                c."Description",
+                c."Price",
                 p."Name" as "instructorName",
                 v."Link" as "trailerLink",
                 encode(c."Thumbnail", 'base64') as "thumbnail_base64"
@@ -205,9 +204,94 @@ app.get('/api/v1/courses/:id', async (req, res) => {
     }
 });
 
+// MODIFIED Certificate Generation Route
+app.get('/api/courses/:courseId/certificate', authenticateJWT, async (req, res) => {
+    const { courseId } = req.params;
+    const userId = req.user.id;
+
+    try {
+        // --- SECURITY CHECK ---
+        // 1. Find the Sub_Topic_ID for the 'Final Quiz' using a case-insensitive search
+        const finalQuizSubTopicResult = await db.query(
+            'SELECT "Sub_Topic_ID" FROM "Sub_Topic" WHERE "Course_ID" = $1 AND "Title" ILIKE \'Final Quiz\'', // Using ILIKE for case-insensitivity
+            [courseId]
+        );
+
+        if (finalQuizSubTopicResult.rows.length === 0) {
+            return res.status(400).json({ msg: 'This course does not have a final quiz and certificates cannot be issued.' });
+        }
+        const finalQuizSubTopicId = finalQuizSubTopicResult.rows[0].Sub_Topic_ID;
+
+        // 2. Check if a mark exists for the user for this final quiz
+        const markResult = await db.query(
+            'SELECT 1 FROM "Mark" WHERE "Student_ID" = $1 AND "Course_ID" = $2 AND "Sub_Topic_ID" = $3',
+            [userId, courseId, finalQuizSubTopicId]
+        );
+
+        if (markResult.rows.length === 0) {
+            return res.status(403).json({ msg: 'You must complete and be graded on the Final Quiz to download the certificate.' });
+        }
+        // --- END SECURITY CHECK ---
+
+
+        // Read the static certificate template from the filesystem
+        const templatePath = path.join(__dirname, 'public', 'certificate.png');
+        const certificateTemplateBuffer = await fs.readFile(templatePath);
+
+        // Fetch the student's name
+        const userResult = await db.query('SELECT "Name" FROM "Person" WHERE "Person_ID" = $1', [userId]);
+        if (!userResult.rows.length) {
+            return res.status(404).json({ msg: 'Student not found.' });
+        }
+        const studentName = userResult.rows[0].Name;
+        
+        // Fetch the course name
+        const courseResult = await db.query('SELECT "Title" FROM "Course" WHERE "Course_ID" = $1', [courseId]);
+        if (!courseResult.rows.length) {
+            return res.status(404).json({ msg: 'Course not found.' });
+        }
+        const courseName = courseResult.rows[0].Title;
+
+
+        // --- REGENERATED: Create an SVG with more precise positioning and styling ---
+        const width = 2000; // The width of your certificate template
+        const height = 1400; // The height of your certificate template
+        const svgText = `
+        <svg width="${width}" height="${height}">
+            <style>
+                .student-name { fill: #1E293B; font-size: 96px; font-family: 'Pinyon Script', cursive; font-weight: 700; }
+                .course-name { fill: #374151; font-size: 50px; font-family: 'Montserrat', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; }
+            </style>
+            <text x="50%" y="780" text-anchor="middle" class="student-name">${studentName}</text>
+            <text x="50%" y="950" text-anchor="middle" class="course-name">${courseName}</text>
+        </svg>
+        `;
+
+        const finalCertificateBuffer = await sharp(certificateTemplateBuffer)
+            .composite([{
+                input: Buffer.from(svgText),
+                top: 0,
+                left: 0,
+            }])
+            .toBuffer();
+
+        res.set({
+            'Content-Type': 'image/png',
+            'Content-Disposition': `attachment; filename="certificate-${courseId}.png"`,
+        });
+        res.send(finalCertificateBuffer);
+
+    } catch (err) {
+        console.error('Certificate generation failed:', err.message);
+        if (err.code === 'ENOENT') {
+             return res.status(500).json({ msg: 'Certificate template is missing on the server.' });
+        }
+        res.status(500).json({ msg: 'Server Error during certificate generation' });
+    }
+});
+
 
 // --- AUTH ROUTES ---
-
 app.post('/api/auth/register', async (req, res) => {
   const { fullName, email, password, birthdate, district, city, country } = req.body;
   try {
@@ -243,47 +327,39 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// --- UPDATED LOGIN ROUTE ---
 app.post('/api/v1/login', async (req, res) => {
-  // Destructure email, password, and the new role field from the request body
-  const { email, password, role } = req.body; 
+  const { email, password, role } = req.body;
 
   try {
-    // Fetch user from the database. Note the addition of "IS_ADMIN" to the SELECT statement
     const userResult = await db.query('SELECT *, "IS_ADMIN" FROM "Person" WHERE "Email" = $1', [email]);
-    
+
     if (userResult.rows.length === 0) {
       return res.status(401).json({ status: 'fail', msg: 'Invalid email or password.' });
     }
 
     const user = userResult.rows[0];
 
-    // --- NEW: Admin Role Verification ---
-    // If login is attempted as 'admin', check if the IS_ADMIN flag is true in the database
     if (role === 'admin' && user.IS_ADMIN !== true) {
         return res.status(403).json({ status: 'fail', msg: 'Access denied. Not an administrator.' });
     }
-    // --- END: Admin Role Verification ---
 
-    // Check if a password exists for the user before comparing
     if (!user.Password) {
         return res.status(401).json({ status: 'fail', msg: 'Invalid email or password.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.Password);
-    
+
     if (!isMatch) {
       return res.status(401).json({ status: 'fail', msg: 'Invalid email or password.' });
     }
-    
+
     const userId = user.Person_ID;
     const payload = { user: { id: userId } };
 
     jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5h' }, (err, token) => {
       if (err) throw err;
 
-      // Determine the role to send back in the response based on database flags
-      let userRole = 'student'; // Default role
+      let userRole = 'student';
       if (user.IS_ADMIN === true) {
           userRole = 'admin';
       } else if (user.Is_Author === true) {
@@ -297,10 +373,10 @@ app.post('/api/v1/login', async (req, res) => {
           id: user.Person_ID,
           name: user.Name,
           email: user.Email,
-          isAdmin: user.IS_ADMIN, // Explicitly send admin status
+          isAdmin: user.IS_ADMIN,
           isAuthor: user.Is_Author,
         },
-        role: userRole, // Send the determined role to the frontend
+        role: userRole,
       });
     });
 
@@ -311,25 +387,23 @@ app.post('/api/v1/login', async (req, res) => {
 });
 
 
-// --- NEW: ADMIN ROUTES ---
-
-// GET courses for admin dashboard (by status)
+// --- ADMIN ROUTES ---
 app.get('/api/v1/admin/courses', authenticateJWT, isAdmin, async (req, res) => {
-    const { status } = req.query; // e.g., 'pending' or 'accepted,declined'
-    
+    const { status } = req.query;
+
     if (!status) {
         return res.status(400).json({ msg: 'Status query parameter is required.' });
     }
 
-    const statusList = status.split(','); // Handle multiple statuses
+    const statusList = status.split(',');
 
     try {
         const result = await db.query(
-            `SELECT 
-                c."Course_ID", 
-                c."Title", 
-                c."Description", 
-                c."Price", 
+            `SELECT
+                c."Course_ID",
+                c."Title",
+                c."Description",
+                c."Price",
                 c."Status",
                 p."Name" as "instructorName"
              FROM "Course" c
@@ -338,7 +412,7 @@ app.get('/api/v1/admin/courses', authenticateJWT, isAdmin, async (req, res) => {
              ORDER BY c."Creation_Date" DESC`,
             [statusList]
         );
-        
+
         res.status(200).json({
             status: 'success',
             data: {
@@ -351,16 +425,15 @@ app.get('/api/v1/admin/courses', authenticateJWT, isAdmin, async (req, res) => {
     }
 });
 
-// NEW: GET a single course's full details for admin view
 app.get('/api/v1/admin/courses/:courseId', authenticateJWT, isAdmin, async (req, res) => {
     const { courseId } = req.params;
 
     try {
         const courseResult = await db.query(
-            `SELECT 
-                c."Title", 
-                c."Description", 
-                c."Price", 
+            `SELECT
+                c."Title",
+                c."Description",
+                c."Price",
                 p."Name" as "instructorName",
                 v."Link" as "trailerLink",
                 encode(c."Thumbnail", 'base64') as "thumbnail_base64"
@@ -380,12 +453,12 @@ app.get('/api/v1/admin/courses/:courseId', authenticateJWT, isAdmin, async (req,
             'SELECT "Sub_Topic_ID", "Title" FROM "Sub_Topic" WHERE "Course_ID" = $1 ORDER BY "Sub_Topic_ID"',
             [courseId]
         );
-        
+
         const subtopicsData = await Promise.all(subtopicsResult.rows.map(async (sub) => {
             const videosResult = await db.query('SELECT "Title", "Link" FROM "Video" WHERE "Sub_Topic_ID" = $1 AND "Course_ID" = $2', [sub.Sub_Topic_ID, courseId]);
             const assignmentsResult = await db.query('SELECT "Assignment_Link" FROM "Assignment" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]);
             const examsResult = await db.query('SELECT "Exam_Link" FROM "Exam" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]);
-            
+
             return {
                 title: sub.Title,
                 videos: videosResult.rows,
@@ -410,11 +483,9 @@ app.get('/api/v1/admin/courses/:courseId', authenticateJWT, isAdmin, async (req,
     }
 });
 
-
-// PUT (update) course status
 app.put('/api/v1/admin/courses/:courseId/status', authenticateJWT, isAdmin, async (req, res) => {
     const { courseId } = req.params;
-    const { status } = req.body; // 'accepted' or 'declined'
+    const { status } = req.body;
 
     if (!status || !['accepted', 'declined'].includes(status)) {
         return res.status(400).json({ msg: 'Invalid status provided.' });
@@ -446,7 +517,7 @@ app.get('/api/profile', authenticateJWT, async (req, res) => {
   const userId = req.user.id;
   try {
     const personResult = await db.query(
-      `SELECT 
+      `SELECT
         p."Name" as name, p."Email" as email, p."Is_Author" as "isAuthor", p."Birth_Date" as "birthDate",
         p."Holding" as holding, p."Thana" as thana, p."City" as city, p."Postal_Code" as "postalCode",
         p."District" as district, p."Country" as country, t."Working" as working, t."Teaching_Start_Date" as "teachingStartDate"
@@ -471,7 +542,7 @@ app.get('/api/profile', authenticateJWT, async (req, res) => {
       },
       professional: userData.working ? { working: userData.working, teachingStartDate: userData.teachingStartDate } : null,
       education: eduResult.rows.map(edu => ({
-          ...edu, institution: 'University Name', 
+          ...edu, institution: 'University Name',
           grade: edu.grade ? parseFloat(edu.grade).toFixed(2) : 'N/A',
           passingYear: new Date(edu.passingYear).getFullYear().toString()
       })),
@@ -597,13 +668,18 @@ app.get('/api/teacher/my-courses', authenticateJWT, async (req, res) => {
   }
 });
 
+// --- UPDATED: Multer middleware now only handles thumbnail ---
+const courseUpload = upload.fields([
+    { name: 'thumbnail', maxCount: 1 }
+]);
+
 // Create course route
-app.post('/api/teacher/courses', authenticateJWT, upload.single('thumbnail'), async (req, res) => {
+app.post('/api/teacher/courses', authenticateJWT, courseUpload, async (req, res) => {
   const userId = req.user.id;
   const { title, description, price, trailerLink } = req.body;
   const subtopics = JSON.parse(req.body.subtopics);
 
-  if (!title || !price || !req.file || !Array.isArray(subtopics)) {
+  if (!title || !price || !req.files || !req.files.thumbnail || !Array.isArray(subtopics)) {
     return res.status(400).json({ error: 'Missing required fields: title, price, thumbnail, and subtopics are required.' });
   }
 
@@ -612,11 +688,10 @@ app.post('/api/teacher/courses', authenticateJWT, upload.single('thumbnail'), as
 
     const courseResult = await db.query(
       'INSERT INTO "Course" ("Author_ID", "Title", "Description", "Price", "Thumbnail", "Head_Teacher_ID", "Creation_Date") VALUES ($1, $2, $3, $4, $5, $1, NOW()) RETURNING "Course_ID"',
-      [userId, title, description, price, req.file.buffer]
+      [userId, title, description, price, req.files.thumbnail[0].buffer]
     );
     const courseId = courseResult.rows[0].Course_ID;
 
-    // Automatically enroll the creator in their own course
     const tranxId = Math.floor(Math.random() * 1000000000);
     await db.query(
         'INSERT INTO "Enroll" ("Student_ID", "Course_ID", "Tranx_ID") VALUES ($1, $2, $3) ON CONFLICT ("Student_ID", "Course_ID") DO NOTHING',
@@ -631,7 +706,7 @@ app.post('/api/teacher/courses', authenticateJWT, upload.single('thumbnail'), as
       const trailerId = videoResult.rows[0].Video_ID;
       await db.query('UPDATE "Course" SET "Trailer_ID" = $1 WHERE "Course_ID" = $2', [trailerId, courseId]);
     }
-    
+
     for (const sub of subtopics) {
       const subtopicResult = await db.query(
         'INSERT INTO "Sub_Topic" ("Course_ID", "Teacher_ID", "Title", "Is_one_video") VALUES ($1, $2, $3, $4) RETURNING "Sub_Topic_ID"',
@@ -672,44 +747,92 @@ app.post('/api/teacher/courses', authenticateJWT, upload.single('thumbnail'), as
   }
 });
 
+// MODIFIED ROUTE
 app.get('/api/courses/:courseId/doing', authenticateJWT, async (req, res) => {
-  const { courseId } = req.params;
-  try {
-    const subtopicsResult = await db.query(
-      'SELECT "Sub_Topic_ID", "Title" FROM "Sub_Topic" WHERE "Course_ID" = $1 ORDER BY "Title" ASC',
-      [courseId]
-    );
-    const subtopics = subtopicsResult.rows;
-    const data = await Promise.all(subtopics.map(async (sub) => {
-      const [videos, assignments, exams] = await Promise.all([
-        db.query('SELECT "Video_ID", "Title", "Link" FROM "Video" WHERE "Sub_Topic_ID" = $1 AND "Course_ID" = $2', [sub.Sub_Topic_ID, courseId]),
-        db.query('SELECT "Assignment_ID", "Assignment_Link" FROM "Assignment" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]),
-        db.query('SELECT "Exam_ID", "Exam_Link" FROM "Exam" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]),
-      ]);
-      return {
-        subTopicId: sub.Sub_Topic_ID, title: sub.Title,
-        videos: videos.rows, assignments: assignments.rows, exams: exams.rows,
-      };
-    }));
-    res.json({ subtopics: data });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: err.message });
-  }
+    const { courseId } = req.params;
+    const userId = req.user.id; // Get current user's ID
+
+    try {
+        let canGetCertificate = false;
+
+        // Check for Final Quiz completion using a case-insensitive search
+        const finalQuizSubTopicResult = await db.query(
+            'SELECT "Sub_Topic_ID" FROM "Sub_Topic" WHERE "Course_ID" = $1 AND "Title" ILIKE \'Final Quiz\'', // Using ILIKE for case-insensitivity
+            [courseId]
+        );
+
+        if (finalQuizSubTopicResult.rows.length > 0) {
+            const finalQuizSubTopicId = finalQuizSubTopicResult.rows[0].Sub_Topic_ID;
+            const markResult = await db.query(
+                'SELECT 1 FROM "Mark" WHERE "Student_ID" = $1 AND "Course_ID" = $2 AND "Sub_Topic_ID" = $3',
+                [userId, courseId, finalQuizSubTopicId]
+            );
+            if (markResult.rows.length > 0) {
+                canGetCertificate = true;
+            }
+        }
+        
+        // Fetch all marks for the user in this course in a single query
+        const marksResult = await db.query(
+            'SELECT "Sub_Topic_ID", "Exam_Mark" FROM "Mark" WHERE "Student_ID" = $1 AND "Course_ID" = $2',
+            [userId, courseId]
+        );
+        
+        // Create a lookup map for faster access: { subTopicId: mark }
+        const marksMap = marksResult.rows.reduce((map, mark) => {
+            map[mark.Sub_Topic_ID] = mark.Exam_Mark;
+            return map;
+        }, {});
+
+        // Fetch all subtopics for the course
+        const subtopicsResult = await db.query(
+            'SELECT "Sub_Topic_ID", "Title" FROM "Sub_Topic" WHERE "Course_ID" = $1 ORDER BY "Title" ASC',
+            [courseId]
+        );
+        const subtopics = subtopicsResult.rows;
+
+        // For each subtopic, fetch its content and merge the marks
+        const data = await Promise.all(subtopics.map(async (sub) => {
+            const [videos, assignments, exams] = await Promise.all([
+                db.query('SELECT "Video_ID", "Title", "Link" FROM "Video" WHERE "Sub_Topic_ID" = $1 AND "Course_ID" = $2', [sub.Sub_Topic_ID, courseId]),
+                db.query('SELECT "Assignment_ID", "Assignment_Link" FROM "Assignment" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]),
+                db.query('SELECT "Exam_ID", "Exam_Link", "Total_Mark" FROM "Exam" WHERE "Sub_Topic_ID" = $1', [sub.Sub_Topic_ID]),
+            ]);
+
+            // Augment exam data with the fetched marks
+            const examsWithMarks = exams.rows.map(exam => ({
+                ...exam,
+                exam_mark: marksMap[sub.Sub_Topic_ID] !== undefined ? marksMap[sub.Sub_Topic_ID] : null,
+            }));
+
+            return {
+                subTopicId: sub.Sub_Topic_ID,
+                title: sub.Title,
+                videos: videos.rows,
+                assignments: assignments.rows,
+                exams: examsWithMarks, // Use the new array with marks
+            };
+        }));
+        
+        res.json({ subtopics: data, canGetCertificate }); // Send the flag to the frontend
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// **UPDATED** Get notices for a course (student view)
+
 app.get('/api/courses/:courseId/notices', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;
   try {
     const result = await db.query(
-      `SELECT 
-         n."Notice_ID", 
-         n."Title", 
-         n."Description", 
+      `SELECT
+         n."Notice_ID",
+         n."Title",
+         n."Description",
          o."Title" as attachment_title,
          r."Link" as attachment_link
-       FROM "Notice" n 
+       FROM "Notice" n
        LEFT JOIN "Other" o ON n."Attachment_ID" = o."Other_ID"
        LEFT JOIN "Resources" r ON o."Other_ID" = r."Resources_ID"
        WHERE n."Course_ID" = $1 ORDER BY n."Notice_ID" DESC`,
@@ -738,13 +861,13 @@ app.get('/api/teacher/courses/:courseId', authenticateJWT, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized or course not found' });
     }
     const course = courseResult.rows[0];
-    
+
     const subtopicsResult = await db.query(
       'SELECT "Sub_Topic_ID", "Title" FROM "Sub_Topic" WHERE "Course_ID" = $1 ORDER BY "Title" ASC',
       [courseId]
     );
     const subtopics = subtopicsResult.rows;
-    
+
     const subtopicsData = await Promise.all(subtopics.map(async (sub) => {
       const [videos, assignments, exams] = await Promise.all([
         db.query('SELECT "Video_ID", "Title", "Link" FROM "Video" WHERE "Sub_Topic_ID" = $1 AND "Course_ID" = $2', [sub.Sub_Topic_ID, courseId]),
@@ -758,8 +881,8 @@ app.get('/api/teacher/courses/:courseId', authenticateJWT, async (req, res) => {
         exams: exams.rows.map(e => ({ link: e.Exam_Link })),
       };
     }));
-    
-    res.json({ 
+
+    res.json({
       course: {
         id: course.Course_ID, title: course.Title, description: course.Description,
         price: course.Price, trailerLink: course.trailerLink,
@@ -772,18 +895,17 @@ app.get('/api/teacher/courses/:courseId', authenticateJWT, async (req, res) => {
   }
 });
 
-// **FIXED** Update course route
-app.put('/api/teacher/courses/:courseId', authenticateJWT, upload.single('thumbnail'), async (req, res) => {
+// Update course route
+app.put('/api/teacher/courses/:courseId', authenticateJWT, courseUpload, async (req, res) => {
   const { courseId } = req.params;
   const userId = req.user.id;
   const { title, description, price, trailerLink } = req.body;
-  // **FIX:** Parse the subtopics string into a JavaScript array.
   const subtopics = JSON.parse(req.body.subtopics);
-  
+
   if (!title || price === undefined || !Array.isArray(subtopics)) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  
+
   try {
     await db.query('BEGIN');
 
@@ -795,16 +917,16 @@ app.put('/api/teacher/courses/:courseId', authenticateJWT, upload.single('thumbn
       return res.status(403).json({ error: 'Not authorized or course not found' });
     }
     const currentTrailerId = courseCheck.rows[0].Trailer_ID;
-    
+
     await db.query(
       'UPDATE "Course" SET "Title" = $1, "Description" = $2, "Price" = $3 WHERE "Course_ID" = $4',
       [title, description, Number(price), courseId]
     );
 
-    if (req.file) {
-        await db.query('UPDATE "Course" SET "Thumbnail" = $1 WHERE "Course_ID" = $2', [req.file.buffer, courseId]);
+    if (req.files && req.files.thumbnail) {
+        await db.query('UPDATE "Course" SET "Thumbnail" = $1 WHERE "Course_ID" = $2', [req.files.thumbnail[0].buffer, courseId]);
     }
-
+    
     if (trailerLink) {
         if (currentTrailerId) {
             await db.query('UPDATE "Video" SET "Link" = $1 WHERE "Video_ID" = $2', [trailerLink, currentTrailerId]);
@@ -820,7 +942,7 @@ app.put('/api/teacher/courses/:courseId', authenticateJWT, upload.single('thumbn
         await db.query('UPDATE "Course" SET "Trailer_ID" = NULL WHERE "Course_ID" = $1', [courseId]);
         await db.query('DELETE FROM "Video" WHERE "Video_ID" = $1', [currentTrailerId]);
     }
-    
+
     const existingSubtopics = await db.query('SELECT "Sub_Topic_ID" FROM "Sub_Topic" WHERE "Course_ID" = $1', [courseId]);
     for (const row of existingSubtopics.rows) {
       const subTopicId = row.Sub_Topic_ID;
@@ -829,8 +951,7 @@ app.put('/api/teacher/courses/:courseId', authenticateJWT, upload.single('thumbn
       await db.query('DELETE FROM "Video" WHERE "Sub_Topic_ID" = $1', [subTopicId]);
     }
     await db.query('DELETE FROM "Sub_Topic" WHERE "Course_ID" = $1', [courseId]);
-    
-    // **FIX:** Use the parsed `subtopics` array for the loop.
+
     for (const sub of subtopics) {
       const subtopicResult = await db.query(
         'INSERT INTO "Sub_Topic" ("Course_ID", "Teacher_ID", "Title", "Is_one_video") VALUES ($1, $2, $3, $4) RETURNING "Sub_Topic_ID"',
@@ -853,7 +974,7 @@ app.put('/api/teacher/courses/:courseId', authenticateJWT, upload.single('thumbn
           }
       }
     }
-    
+
     await db.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
@@ -863,7 +984,7 @@ app.put('/api/teacher/courses/:courseId', authenticateJWT, upload.single('thumbn
   }
 });
 
-// **UPDATED** Get notices for a course (teacher only)
+// Get notices for a course (teacher only)
 app.get('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;
   const userId = req.user.id;
@@ -871,13 +992,13 @@ app.get('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, r
     const courseCheck = await db.query('SELECT "Course_ID" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
     if (courseCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized or course not found' });
     const result = await db.query(
-      `SELECT 
-         n."Notice_ID", 
-         n."Title", 
-         n."Description", 
+      `SELECT
+         n."Notice_ID",
+         n."Title",
+         n."Description",
          o."Title" as attachment_title,
          r."Link" as attachment_link
-       FROM "Notice" n 
+       FROM "Notice" n
        LEFT JOIN "Other" o ON n."Attachment_ID" = o."Other_ID"
        LEFT JOIN "Resources" r ON o."Other_ID" = r."Resources_ID"
        WHERE n."Course_ID" = $1 ORDER BY n."Notice_ID" DESC`,
@@ -890,18 +1011,17 @@ app.get('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, r
   }
 });
 
-// **UPDATED** Add a new notice
+// Add a new notice
 app.post('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;
   const userId = req.user.id;
-  const { title, description, attachmentLink } = req.body; // Changed from attachmentId to attachmentLink
-  
+  const { title, description, attachmentLink } = req.body;
+
   if (!title || !description) {
       return res.status(400).json({ error: 'Title and description are required' });
   }
 
   try {
-    // Authorize user
     const courseCheck = await db.query('SELECT "Course_ID" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
     if (courseCheck.rows.length === 0) {
         return res.status(403).json({ error: 'Not authorized or course not found' });
@@ -909,23 +1029,20 @@ app.post('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, 
 
     let attachmentId = null;
 
-    // If an attachment link is provided, create the resources in the database
     if (attachmentLink && attachmentLink.trim() !== '') {
       await db.query('BEGIN');
       try {
-        // 1. Insert into Resources and get the new ID
         const resourceResult = await db.query(
           'INSERT INTO "Resources" ("Link") VALUES ($1) RETURNING "Resources_ID"',
           [attachmentLink.trim()]
         );
         const resourceId = resourceResult.rows[0].Resources_ID;
 
-        // 2. Insert into "Other" using the new resource ID and the notice title
         await db.query(
           'INSERT INTO "Other" ("Other_ID", "Title") VALUES ($1, $2)',
           [resourceId, title]
         );
-        
+
         attachmentId = resourceId;
         await db.query('COMMIT');
       } catch (transactionError) {
@@ -935,7 +1052,6 @@ app.post('/api/teacher/courses/:courseId/notices', authenticateJWT, async (req, 
       }
     }
 
-    // 3. Insert the notice with the new attachment ID (or null if no link was provided)
     const result = await db.query(
       'INSERT INTO "Notice" ("Course_ID", "Title", "Description", "Attachment_ID") VALUES ($1, $2, $3, $4) RETURNING "Notice_ID"',
       [courseId, title, description, attachmentId]
@@ -968,26 +1084,21 @@ app.delete('/api/teacher/notices/:noticeId', authenticateJWT, async (req, res) =
   }
 });
 
-// --- NEW: MARKS MANAGEMENT ROUTES ---
-
-// GET marks data for a course
+// --- MARKS MANAGEMENT ROUTES ---
 app.get('/api/teacher/courses/:courseId/marks', authenticateJWT, async (req, res) => {
     const { courseId } = req.params;
     const userId = req.user.id;
 
     try {
-        // 1. Authorize: Check if the current user is the author of the course
         const courseCheck = await db.query('SELECT "Title" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
         if (courseCheck.rows.length === 0) {
             return res.status(403).json({ error: 'Not authorized or course not found' });
         }
         const courseTitle = courseCheck.rows[0].Title;
 
-        // 2. Get all sub-topics for the course
         const subTopicsResult = await db.query('SELECT "Sub_Topic_ID", "Title" FROM "Sub_Topic" WHERE "Course_ID" = $1 ORDER BY "Sub_Topic_ID"', [courseId]);
         const subTopics = subTopicsResult.rows.map(st => ({ sub_topic_id: st.Sub_Topic_ID, title: st.Title }));
 
-        // 3. Get all enrolled students, excluding the author
         const studentsResult = await db.query(
             `SELECT p."Person_ID" as student_id, p."Name" as name, p."Email" as email
              FROM "Enroll" e
@@ -998,11 +1109,9 @@ app.get('/api/teacher/courses/:courseId/marks', authenticateJWT, async (req, res
         );
         const students = studentsResult.rows;
 
-        // 4. Get all existing marks for this course
         const marksResult = await db.query('SELECT "Student_ID", "Sub_Topic_ID", "Exam_Mark", "COMMENT" FROM "Mark" WHERE "Course_ID" = $1', [courseId]);
         const allMarks = marksResult.rows;
 
-        // 5. Structure the data for the frontend
         const studentsWithMarks = students.map(student => {
             const studentMarks = allMarks
                 .filter(mark => mark.Student_ID === student.student_id)
@@ -1026,30 +1135,26 @@ app.get('/api/teacher/courses/:courseId/marks', authenticateJWT, async (req, res
     }
 });
 
-// POST (save/update) marks for a course
 app.post('/api/teacher/courses/:courseId/marks', authenticateJWT, async (req, res) => {
     const { courseId } = req.params;
     const userId = req.user.id;
-    const { marks } = req.body; // Expects an array of mark objects
+    const { marks } = req.body;
 
     if (!Array.isArray(marks)) {
         return res.status(400).json({ error: 'Invalid data format. "marks" should be an array.' });
     }
 
     try {
-        // 1. Authorize: Check if the current user is the author of the course
         const courseCheck = await db.query('SELECT "Course_ID" FROM "Course" WHERE "Course_ID" = $1 AND "Author_ID" = $2', [courseId, userId]);
         if (courseCheck.rows.length === 0) {
             return res.status(403).json({ error: 'Not authorized or course not found' });
         }
 
-        // 2. Use a transaction to save all marks
         await db.query('BEGIN');
 
         for (const markData of marks) {
             const { studentId, subTopicId, mark, comment } = markData;
-            
-            // Use ON CONFLICT to either INSERT a new mark or UPDATE an existing one
+
             await db.query(
                 `INSERT INTO "Mark" ("Student_ID", "Course_ID", "Sub_Topic_ID", "Exam_Mark", "COMMENT")
                  VALUES ($1, $2, $3, $4, $5)
@@ -1072,9 +1177,7 @@ app.post('/api/teacher/courses/:courseId/marks', authenticateJWT, async (req, re
 });
 
 
-// --- END OF MARKS MANAGEMENT ROUTES ---
-
-
+// Delete a course
 app.delete('/api/courses/:courseId', authenticateJWT, async (req, res) => {
   const { courseId } = req.params;
   const userId = req.user.id;

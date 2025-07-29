@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlayCircle, FileText, ChevronDown, Menu, X, Bell, Loader, ArrowLeft } from 'lucide-react';
+// --- NEW: Import Award icon for the certificate button ---
+import { PlayCircle, FileText, ChevronDown, Menu, X, Bell, Loader, ArrowLeft, Award } from 'lucide-react';
 
 // Helper to ensure links are absolute URLs for external resources
 const ensureAbsoluteUrl = url => {
@@ -17,6 +18,11 @@ const CourseDoingPage = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [openSubtopic, setOpenSubtopic] = useState(null);
     const [selectedContent, setSelectedContent] = useState(null);
+    // --- NEW: State to handle certificate download loading ---
+    const [isDownloading, setIsDownloading] = useState(false);
+    // --- NEW: State to control certificate button availability ---
+    const [canGetCertificate, setCanGetCertificate] = useState(false);
+
 
     useEffect(() => {
         const fetchData = async () => {
@@ -33,6 +39,9 @@ const CourseDoingPage = () => {
                     throw new Error("Failed to load course content. You may not be enrolled.");
                 }
                 const data = await response.json();
+                
+                // Set the certificate availability based on the API response
+                setCanGetCertificate(data.canGetCertificate);
                 
                 // Fetch course title separately for the header
                 const courseTitleRes = await fetch(`http://localhost:5001/api/v1/courses/${courseId}`);
@@ -72,6 +81,41 @@ const CourseDoingPage = () => {
         setSelectedContent({ type, data });
         setSidebarOpen(false); // Close sidebar on mobile after selection
     };
+
+    // --- NEW: Function to handle certificate download ---
+    const handleDownloadCertificate = async () => {
+        setIsDownloading(true);
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`http://localhost:5001/api/courses/${courseId}/certificate`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.msg || 'Could not download certificate.');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            // The filename is set by the server's Content-Disposition header
+            a.download = `Certificate-${courseData.title}.png`; 
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+
+        } catch (err) {
+            console.error(err);
+            alert(`Error: ${err.message}`); // Replace with a better notification system if you have one
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
 
     const renderContent = () => {
         if (!selectedContent) {
@@ -146,10 +190,25 @@ const CourseDoingPage = () => {
                                             Assignment
                                         </a>
                                     ))}
+                                    {/* MODIFIED EXAM MAPPING */}
                                     {sub.exams.map(exam => (
-                                        <a key={exam.Exam_ID} href={ensureAbsoluteUrl(exam.Exam_Link)} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-purple-100 text-gray-700 transition-colors duration-200">
-                                            <FileText className="h-4 w-4 flex-shrink-0" />
-                                            Exam
+                                        <a 
+                                            key={exam.Exam_ID} 
+                                            href={ensureAbsoluteUrl(exam.Exam_Link)} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-md text-sm hover:bg-purple-100 text-gray-700 transition-colors duration-200"
+                                        >
+                                            <span className="flex items-center gap-3">
+                                                <FileText className="h-4 w-4 flex-shrink-0" />
+                                                {sub.title.toLowerCase().includes('quiz') ? 'Final Quiz' : 'Exam'}
+                                            </span>
+                                            
+                                            {exam.exam_mark !== null && exam.exam_mark !== undefined && (
+                                                <span className="font-bold text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
+                                                    {exam.exam_mark} / {10}
+                                                </span>
+                                            )}
                                         </a>
                                     ))}
                                 </div>
@@ -184,6 +243,21 @@ const CourseDoingPage = () => {
                         Back to My Courses
                     </button>
                     <div className="flex items-center gap-4">
+                        {/* --- MODIFIED: Certificate Button --- */}
+                        <button
+                            onClick={handleDownloadCertificate}
+                            disabled={!canGetCertificate || isDownloading}
+                            title={!canGetCertificate ? "You must complete the Final Quiz to get your certificate." : "Download your certificate"}
+                            className="flex items-center gap-2 bg-purple-600 text-white font-semibold px-4 py-2 rounded-full hover:bg-purple-700 transition-colors duration-200 shadow-sm disabled:bg-purple-300 disabled:cursor-not-allowed"
+                        >
+                            {isDownloading ? (
+                                <Loader className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Award className="h-4 w-4" />
+                            )}
+                            {isDownloading ? 'Generating...' : 'Get Certificate'}
+                        </button>
+
                         <button
                             onClick={() => navigate(`/my-courses/${courseId}/notices`)}
                             className="flex items-center gap-2 bg-white text-gray-700 border border-gray-300/80 font-semibold px-4 py-2 rounded-full hover:bg-gray-100 transition-colors duration-200 shadow-sm"
