@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Star, ArrowRight, Loader } from 'lucide-react';
+import { Star, ArrowRight, Loader, Award } from 'lucide-react'; // Added Award icon for the tag
 
 // --- Reusable Course Card Component ---
 const CourseCard = ({ course }) => {
@@ -18,6 +18,14 @@ const CourseCard = ({ course }) => {
             className="bg-white rounded-xl shadow-lg border border-gray-200/80 overflow-hidden group cursor-pointer transform hover:-translate-y-2 transition-all duration-300 h-full flex flex-col"
         >
             <div className="relative h-40 bg-gray-200">
+                {/* Bestseller Tag - Renders if enrollment_count > 3 */}
+                {course.enrollment_count > 3 && (
+                    <div className="absolute top-2 left-2 bg-yellow-400 text-gray-900 text-xs font-bold px-3 py-1 rounded-full z-10 flex items-center shadow-md">
+                        <Award className="h-4 w-4 mr-1" />
+                        Bestseller
+                    </div>
+                )}
+
                  {course.thumbnail_base64 ? (
                     <img 
                         src={`data:image/png;base64,${course.thumbnail_base64}`} 
@@ -74,21 +82,6 @@ const HomePage = () => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Function to shuffle an array (Fisher-Yates shuffle)
-        const shuffleArray = (array) => {
-            let currentIndex = array.length,  randomIndex;
-            // While there remain elements to shuffle.
-            while (currentIndex !== 0) {
-                // Pick a remaining element.
-                randomIndex = Math.floor(Math.random() * currentIndex);
-                currentIndex--;
-                // And swap it with the current element.
-                [array[currentIndex], array[randomIndex]] = [
-                    array[randomIndex], array[currentIndex]];
-            }
-            return array;
-        }
-
         const fetchCourses = async () => {
             setIsLoading(true);
             try {
@@ -98,6 +91,7 @@ const HomePage = () => {
                 }
                 const data = await response.json();
                 
+                // The new 'enrollment_count' field from the API is automatically included here
                 const formattedCourses = data.data.courses.map(c => ({
                     ...c,
                     title: c.Title,
@@ -107,8 +101,8 @@ const HomePage = () => {
                     Course_ID: c.Course_ID
                 }));
 
-                // Shuffle the courses before setting them in state
-                setCourses(shuffleArray(formattedCourses));
+                // No need to shuffle if we are ordering by popularity in the backend
+                setCourses(formattedCourses);
 
             } catch (err) {
                 setError(err.message);

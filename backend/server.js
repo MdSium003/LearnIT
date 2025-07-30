@@ -53,9 +53,10 @@ const isAdmin = async (req, res, next) => {
 
 // --- API ROUTES ---
 
-// Get all courses (for the main page)
+// Get all courses (for the main page) - MODIFIED FOR BESTSELLER
 app.get('/api/v1/courses', async (req, res) => {
   try {
+    // The query now joins the Enroll table to count enrollments for each course.
     const result = await db.query(
         `SELECT
             c."Course_ID",
@@ -63,10 +64,14 @@ app.get('/api/v1/courses', async (req, res) => {
             c."Description",
             c."Price",
             p."Name" as instructor,
-            encode(c."Thumbnail", 'base64') as thumbnail_base64
+            encode(c."Thumbnail", 'base64') as thumbnail_base64,
+            COUNT(e."Student_ID")::int as enrollment_count
          FROM "Course" c
          JOIN "Person" p ON c."Author_ID" = p."Person_ID"
-         WHERE c."Status" = 'accepted'`
+         LEFT JOIN "Enroll" e ON c."Course_ID" = e."Course_ID"
+         WHERE c."Status" = 'accepted'
+         GROUP BY c."Course_ID", p."Name"
+         ORDER BY enrollment_count DESC`
     );
     res.status(200).json({
       status: 'success',
@@ -81,7 +86,7 @@ app.get('/api/v1/courses', async (req, res) => {
   }
 });
 
-// Search for courses
+// Search for courses - MODIFIED FOR BESTSELLER
 app.get('/api/v1/courses/search', async (req, res) => {
   try {
     const { query } = req.query;
@@ -90,6 +95,7 @@ app.get('/api/v1/courses/search', async (req, res) => {
       return res.status(400).json({ msg: 'Search query is required' });
     }
 
+    // The query now also includes the enrollment count for searched courses.
     const result = await db.query(
       `SELECT
          c."Course_ID",
@@ -97,13 +103,17 @@ app.get('/api/v1/courses/search', async (req, res) => {
          c."Description",
          c."Price",
          p."Name" as instructor,
-         encode(c."Thumbnail", 'base64') as thumbnail_base64
+         encode(c."Thumbnail", 'base64') as thumbnail_base64,
+         COUNT(e."Student_ID")::int as enrollment_count
        FROM "Course" c
        JOIN "Person" p ON c."Author_ID" = p."Person_ID"
+       LEFT JOIN "Enroll" e ON c."Course_ID" = e."Course_ID"
        WHERE
          (c."Title" ILIKE $1 OR
          c."Description" ILIKE $1 OR
-         p."Name" ILIKE $1) AND c."Status" = 'accepted'`,
+         p."Name" ILIKE $1) AND c."Status" = 'accepted'
+       GROUP BY c."Course_ID", p."Name"
+       ORDER BY enrollment_count DESC`,
       [`%${query}%`]
     );
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, ArrowRight, Loader } from 'lucide-react';
+import { Star, ArrowRight, Loader, Award } from 'lucide-react'; // Added Award icon for the tag
 
 const COURSES_PER_PAGE = 20;
 
@@ -22,6 +22,14 @@ const CourseCard = ({ course }) => {
             className="bg-white rounded-xl shadow-lg border border-gray-200/80 overflow-hidden group cursor-pointer transform hover:-translate-y-2 transition-all duration-300 h-full flex flex-col"
         >
             <div className="relative h-40 bg-gray-200">
+                {/* Bestseller Tag - Renders if enrollment_count > 3 */}
+                {course.enrollment_count > 3 && (
+                    <div className="absolute top-2 left-2 bg-yellow-400 text-gray-900 text-xs font-bold px-3 py-1 rounded-full z-10 flex items-center shadow-md">
+                        <Award className="h-4 w-4 mr-1" />
+                        Bestseller
+                    </div>
+                )}
+
                  {course.thumbnail_base64 ? (
                     <img 
                         src={`data:image/png;base64,${course.thumbnail_base64}`} 
@@ -89,6 +97,7 @@ const AllCoursesPage = () => {
                     throw new Error('Failed to fetch courses.');
                 }
                 const data = await response.json();
+                // The new 'enrollment_count' field is now available in the data
                 setCourses(data.data.courses);
             } catch (err) {
                 setError(err.message);

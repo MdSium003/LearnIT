@@ -23,11 +23,17 @@ const TeachPage = ({ user, setUser }) => {
       const data = await response.json();
       if (data.success) {
         alert('Congratulations! You are now an instructor.');
+        
         // Update user state to reflect instructor status
         if (user && setUser) {
-          setUser({ ...user, isAuthor: true });
-          localStorage.setItem('user', JSON.stringify({ ...user, isAuthor: true }));
+          const updatedUser = { ...user, isAuthor: true };
+          setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
         }
+
+        // Set the role in localStorage to 'teacher' for route protection
+        localStorage.setItem('role', 'teacher');
+        
         navigate('/teacher-dashboard');
       } else {
         alert('Error: ' + (data.error || 'Unknown error'));
