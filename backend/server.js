@@ -11,10 +11,7 @@ const path = require('path'); // To create a reliable file path
 
 // Configure multer to store files in memory as buffers
 const upload = multer({ storage: multer.memoryStorage() });
-const frontendURL = process.env.FRONTEND_URL || "http://localhost:3000";
-app.use(cors({
-    origin: frontendURL
-}));
+
 
 const app = express();
 app.get('/', (req, res) => {
@@ -23,6 +20,11 @@ app.get('/', (req, res) => {
     status: 'OK',
   });
 });
+
+const frontendURL = process.env.FRONTEND_URL || "http://localhost:3000";
+app.use(cors({
+    origin: frontendURL
+}));
 
 // Middleware
 app.use(cors());
