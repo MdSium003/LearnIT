@@ -13,6 +13,12 @@ const path = require('path'); // To create a reliable file path
 const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to the LearnIT API!',
+    status: 'OK',
+  });
+});
 
 // Middleware
 app.use(cors());
