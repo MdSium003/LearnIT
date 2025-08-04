@@ -21,13 +21,12 @@ app.get('/', (req, res) => {
   });
 });
 
-const frontendURL = process.env.FRONTEND_URL || "http://localhost:3000";
+const frontendURL = process.env.FRONTEND_URL || "https://learnit-379w.onrender.com/";
 app.use(cors({
     origin: frontendURL
 }));
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 // Serve static files from the 'public' directory
 app.use(express.static('public'));
