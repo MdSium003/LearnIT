@@ -46,7 +46,7 @@ const MyCoursesPage = () => {
                 return;
             }
             try {
-                const response = await fetch('http://localhost:5001/api/my-courses', {
+                const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/my-courses', {
                     headers: { 'Authorization': `Bearer ${token}` },
                 });
                 if (!response.ok) {

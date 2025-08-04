@@ -11,7 +11,7 @@ const EnrolledRoute = ({ children }) => {
         const checkEnrollment = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const response = await axios.get(`http://localhost:5001/api/enrollments/${courseId}`, {
+                const response = await axios.get(`https://learnit-backend-ot1k.onrender.com/api/enrollments/${courseId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setIsEnrolled(response.data.enrolled);

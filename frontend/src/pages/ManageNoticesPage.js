@@ -28,7 +28,7 @@ const ManageNoticesPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5001/api/teacher/courses/${courseId}/notices`, {
+      const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/teacher/courses/${courseId}/notices`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       
@@ -64,7 +64,7 @@ const ManageNoticesPage = () => {
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`http://localhost:5001/api/teacher/courses/${courseId}/notices`, {
+      const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/teacher/courses/${courseId}/notices`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -102,7 +102,7 @@ const ManageNoticesPage = () => {
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`http://localhost:5001/api/teacher/notices/${noticeId}`, {
+      const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/teacher/notices/${noticeId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });

@@ -11,7 +11,7 @@ const AdminProfilePage = () => {
         const fetchProfile = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const response = await axios.get('http://localhost:5001/api/profile', {
+                const response = await axios.get('https://learnit-backend-ot1k.onrender.com/api/profile', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setProfile(response.data);

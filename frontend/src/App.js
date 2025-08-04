@@ -71,7 +71,7 @@ export default function App() {
     const fetchCourses = async () => {
       setIsLoading(true);
       try {
-        const response = await axios.get('http://localhost:5001/api/v1/courses');
+        const response = await axios.get('https://learnit-backend-ot1k.onrender.com/api/v1/courses');
         const transformedCourses = response.data.data.courses.map(course => ({
           id: course.Course_ID,
           title: course.Title,

@@ -81,7 +81,7 @@ const AdminDashboardPage = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get(`http://localhost:5001/api/v1/admin/courses?status=${statusMap[activeTab]}`, {
+            const response = await axios.get(`https://learnit-backend-ot1k.onrender.com/api/v1/admin/courses?status=${statusMap[activeTab]}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCourses(response.data.data.courses);
@@ -100,7 +100,7 @@ const AdminDashboardPage = () => {
     const handleUpdateStatus = async (courseId, status) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put(`http://localhost:5001/api/v1/admin/courses/${courseId}/status`, 
+            await axios.put(`https://learnit-backend-ot1k.onrender.com/api/v1/admin/courses/${courseId}/status`, 
                 { status },
                 { headers: { Authorization: `Bearer ${token}` } }
             );

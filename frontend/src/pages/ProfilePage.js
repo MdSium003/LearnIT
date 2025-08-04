@@ -42,7 +42,7 @@ const ProfilePage = () => {
       }
 
       try {
-        const response = await fetch('http://localhost:5001/api/profile', {
+        const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

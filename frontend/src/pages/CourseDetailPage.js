@@ -57,7 +57,7 @@ const CourseDetailPage = () => {
             setError(null);
             try {
                 // Fetch main course data
-                const response = await fetch(`http://localhost:5001/api/v1/courses/${id}`);
+                const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/v1/courses/${id}`);
                 if (!response.ok) {
                     throw new Error('Course not found.');
                 }
@@ -67,7 +67,7 @@ const CourseDetailPage = () => {
                 // Check enrollment status
                 const token = localStorage.getItem('token');
                 if (token) {
-                    const enrollResponse = await fetch(`http://localhost:5001/api/enrollments/${id}`, {
+                    const enrollResponse = await fetch(`https://learnit-backend-ot1k.onrender.com/api/enrollments/${id}`, {
                         headers: { 'Authorization': `Bearer ${token}` },
                     });
                     const enrollData = await enrollResponse.json();
@@ -91,7 +91,7 @@ const CourseDetailPage = () => {
             return;
         }
         try {
-            const response = await fetch('http://localhost:5001/api/enroll', {
+            const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/enroll', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

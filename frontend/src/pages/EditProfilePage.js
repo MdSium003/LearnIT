@@ -17,7 +17,7 @@ const EditProfilePage = () => {
             }
 
             try {
-                const response = await fetch('http://localhost:5001/api/profile', {
+                const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/profile', {
                     headers: { 'Authorization': `Bearer ${token}` },
                 });
                 if (!response.ok) throw new Error('Failed to fetch profile data.');
@@ -79,7 +79,7 @@ const EditProfilePage = () => {
         const token = localStorage.getItem('token');
 
         try {
-            const response = await fetch('http://localhost:5001/api/profile', {
+            const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/profile', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

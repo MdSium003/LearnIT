@@ -40,7 +40,7 @@ const EditCoursePage = () => {
 
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:5001/api/teacher/courses/${courseId}`, {
+        const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/teacher/courses/${courseId}`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         
@@ -63,7 +63,7 @@ const EditCoursePage = () => {
         });
         
         setTrailerLink(course.trailerLink || '');
-        setThumbnailPreview(`http://localhost:5001/api/courses/${courseId}/thumbnail`);
+        setThumbnailPreview(`https://learnit-backend-ot1k.onrender.com/api/courses/${courseId}/thumbnail`);
 
         if (course.subtopics && course.subtopics.length > 0) {
           const finalQuiz = course.subtopics.find(sub => sub.title === 'Final Quiz');
@@ -177,7 +177,7 @@ const EditCoursePage = () => {
 
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`http://localhost:5001/api/teacher/courses/${courseId}`, {
+      const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/teacher/courses/${courseId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

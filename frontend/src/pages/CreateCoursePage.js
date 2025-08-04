@@ -95,7 +95,7 @@ const CreateCoursePage = () => {
 
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch('http://localhost:5001/api/teacher/courses', {
+      const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/teacher/courses', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

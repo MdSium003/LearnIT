@@ -43,7 +43,7 @@ const LoginPage = ({ handleLogin }) => {
 
     try {
       // Send a POST request to the login endpoint
-      const response = await fetch('http://localhost:5001/api/v1/login', {
+      const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/v1/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

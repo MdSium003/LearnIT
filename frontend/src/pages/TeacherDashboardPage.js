@@ -13,7 +13,7 @@ const TeacherDashboardPage = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
       try {
-        const response = await fetch('http://localhost:5001/api/teacher/my-courses', {
+        const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/teacher/my-courses', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         const data = await response.json();
@@ -46,7 +46,7 @@ const TeacherDashboardPage = () => {
         setDeleting(courseId);
         const token = localStorage.getItem('token');
         try {
-          const response = await fetch(`http://localhost:5001/api/courses/${courseId}`, {
+          const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/courses/${courseId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` },
           });

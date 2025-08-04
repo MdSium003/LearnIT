@@ -13,7 +13,7 @@ const CourseNoticeBoardPage = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
       try {
-        const response = await fetch(`http://localhost:5001/api/courses/${courseId}/notices`, {
+        const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/courses/${courseId}/notices`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         const data = await response.json();

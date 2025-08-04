@@ -32,7 +32,7 @@ const CourseDoingPage = () => {
                 return;
             }
             try {
-                const response = await fetch(`http://localhost:5001/api/courses/${courseId}/doing`, {
+                const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/courses/${courseId}/doing`, {
                     headers: { 'Authorization': `Bearer ${token}` },
                 });
                  if (!response.ok) {
@@ -44,7 +44,7 @@ const CourseDoingPage = () => {
                 setCanGetCertificate(data.canGetCertificate);
                 
                 // Fetch course title separately for the header
-                const courseTitleRes = await fetch(`http://localhost:5001/api/v1/courses/${courseId}`);
+                const courseTitleRes = await fetch(`https://learnit-backend-ot1k.onrender.com/api/v1/courses/${courseId}`);
                 const courseTitleData = await courseTitleRes.json();
 
                 // **FIX:** Sort subtopics to ensure "Final Quiz" is always last.
@@ -87,7 +87,7 @@ const CourseDoingPage = () => {
         setIsDownloading(true);
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch(`http://localhost:5001/api/courses/${courseId}/certificate`, {
+            const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/courses/${courseId}/certificate`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
 

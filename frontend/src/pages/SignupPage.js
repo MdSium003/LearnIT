@@ -27,7 +27,7 @@ const SignupPage = ({ handleLogin }) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5001/api/auth/register', { // Updated URL to 5001
+      const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/auth/register', { // Updated URL to 5001
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

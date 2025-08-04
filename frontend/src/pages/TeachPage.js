@@ -13,7 +13,7 @@ const TeachPage = ({ user, setUser }) => {
         alert('You must be logged in to become a teacher.');
         return;
       }
-      const response = await fetch('http://localhost:5001/api/become-teacher', {
+      const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/become-teacher', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

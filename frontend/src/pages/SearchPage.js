@@ -93,7 +93,7 @@ const SearchPage = () => {
             setError(null);
             try {
                 // Assuming your API has a search endpoint like this
-                const response = await fetch(`http://localhost:5001/api/v1/courses/search?query=${encodeURIComponent(searchTerm)}`);
+                const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/v1/courses/search?query=${encodeURIComponent(searchTerm)}`);
                 if (!response.ok) {
                     throw new Error('Failed to fetch search results.');
                 }

@@ -31,7 +31,7 @@ const AdminCourseDetailPage = () => {
             }
             try {
                 const token = localStorage.getItem('token');
-                const response = await axios.get(`http://localhost:5001/api/v1/admin/courses/${courseId}`, {
+                const response = await axios.get(`https://learnit-backend-ot1k.onrender.com/api/v1/admin/courses/${courseId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setCourse(response.data.data.course);

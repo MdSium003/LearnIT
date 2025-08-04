@@ -92,7 +92,7 @@ const AllCoursesPage = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const response = await fetch('http://localhost:5001/api/v1/courses');
+                const response = await fetch('https://learnit-backend-ot1k.onrender.com/api/v1/courses');
                 if (!response.ok) {
                     throw new Error('Failed to fetch courses.');
                 }

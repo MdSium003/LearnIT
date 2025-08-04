@@ -43,7 +43,7 @@ const CourseMarksPage = () => {
       }
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:5001/api/teacher/courses/${courseId}/marks`, {
+        const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/teacher/courses/${courseId}/marks`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -123,7 +123,7 @@ const CourseMarksPage = () => {
     });
 
     try {
-      const response = await fetch(`http://localhost:5001/api/teacher/courses/${courseId}/marks`, {
+      const response = await fetch(`https://learnit-backend-ot1k.onrender.com/api/teacher/courses/${courseId}/marks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ marks: marksData }),
